@@ -19,6 +19,11 @@ const App = () => {
       return { paymentInitiation: false };
     }
     const data = await response.json();
+    // Data will look like this:
+    // 'item_id': str,
+    // 'access_token': str,
+    // 'products': [str]
+
     const paymentInitiation: boolean =
       data.products.includes("payment_initiation");
     const craEnumValues = Object.values(CraCheckReportProduct);
@@ -37,6 +42,8 @@ const App = () => {
         isUserTokenFlow: isUserTokenFlow,
       },
     });
+
+    // both likely to be false
     return { paymentInitiation, isUserTokenFlow };
   }, [dispatch]);
 
@@ -68,7 +75,7 @@ const App = () => {
       // Link tokens for 'payment_initiation' use a different creation flow in your backend.
       const path = isPaymentInitiation
         ? "/api/create_link_token_for_payment"
-        : "/api/create_link_token";
+        : "/api/create_link_token"; // almost always create_link_token
       const response = await fetch(path, {
         method: "POST",
       });
@@ -77,6 +84,11 @@ const App = () => {
         return;
       }
       const data = await response.json();
+      // Data will look like this:
+      // 'expiration': str
+      // 'link_token': str
+      // 'request_id': str
+
       if (data) {
         if (data.error != null) {
           dispatch({
@@ -114,7 +126,7 @@ const App = () => {
       if (isUserTokenFlow) {
         await generateUserToken();
       }
-      generateToken(paymentInitiation);
+      generateToken(paymentInitiation); // almost always use this
     };
     init();
   }, [dispatch, generateToken, generateUserToken, getInfo]);
