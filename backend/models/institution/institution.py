@@ -7,6 +7,3 @@ class Institution(db.Model):
 
     # Accounts
     accounts = db.relationship('Account', backref='institution', lazy=True)
-
-    def __repr__(self):
-        return f'<User {self.username}>'
