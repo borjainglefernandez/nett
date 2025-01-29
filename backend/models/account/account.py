@@ -4,9 +4,11 @@ from account_subtype import AccountSubtype
 
 class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False, unique=True)
-    balance = db.Column(db.Numeric(10, 2), nullable=False)
-    last_updated = db.Column(db.DateTime, nullable=False)
+    access_token = db.Column(db.String(120), nullable=False, unique=True)
+    name = db.Column(db.String(120), nullable=True, unique=True)
+    plaid_account_id = db.Column(db.String(120), nullable=False, unique=True)
+    balance = db.Column(db.Numeric(10, 2), nullable=True)
+    last_updated = db.Column(db.DateTime, nullable=True)
 
     # Transactions
     transactions = db.relationship('Transaction', backref='account', lazy=True)

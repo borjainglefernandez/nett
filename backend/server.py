@@ -1,10 +1,11 @@
 # Read env vars from .env file
 import base64
+from decimal import Decimal
 import os
 import datetime as dt
 import json
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import uuid
 
 from dotenv import load_dotenv
@@ -62,6 +63,12 @@ from plaid.model.cra_check_report_partner_insights_get_request import CraCheckRe
 from plaid.model.cra_pdf_add_ons import CraPDFAddOns
 from plaid.api import plaid_api
 from flask_sqlalchemy import SQLAlchemy
+
+from backend.models.account.account_subtype import AccountSubtype
+from models.account.credit_card_account import CreditCardAccount
+from models.account.account import Account
+from models.account.account_type import AccountType
+from models.institution.institution import Institution
 
 load_dotenv()
 
@@ -205,7 +212,7 @@ def create_link_token_for_payment():
         )
 
         if PLAID_REDIRECT_URI!=None:
-            linkRequest['redirect_uri']=PLAID_REDIRECT_URI
+            linkRequest['redirect_uri'z]=PLAID_REDIRECT_URI
         linkResponse = client.link_token_create(linkRequest)
         pretty_print_response(linkResponse.to_dict())
         return jsonify(linkResponse.to_dict())
@@ -307,6 +314,63 @@ def get_access_token():
     except plaid.ApiException as e:
         return json.loads(e.body)
 
+# Create account
+@app.route('/api/account', methods=['POST'])
+def create_account():
+    access_token = request.form['access_token']
+    try:
+        request = ItemGetRequest(access_token=access_token)
+        response = client.item_get(request)
+        item = response['item']
+
+        # See if account exists and error if so
+        account = Account.query.filter_by(access_token=access_token).one_or_none()
+        if account:
+            error_response = create_formatted_error(409, "This account already exists")
+            return jsonify(error_response)
+
+        # See if institution exists
+        institution = Institution.query.filter_by(plaid_institution_id=item['institution_id']).one_or_none()
+        if not institution: # If not create one
+            institution = Institution(name=item['institution_name'], plaid_institution_id=item['institution_id'])
+            db.session.add(institution)
+            db.session.commit()
+        
+        # TODO: use https://plaid.com/docs/api/products/balance/ to get more account info
+        # Add new accounts
+        request = AccountsBalanceGetRequest(access_token=access_token)
+        response = client.accounts_balance_get(request)
+        accounts = response['accounts']
+
+        for account in accounts:
+            balances = account["balances"]
+            kwargs = {
+                "name": account.get("name"),
+                "plaid_account_id": account.get("account_id"),
+                "balance": Decimal(balances.get("current", 0.0)),
+                "last_updated": datetime.now(),
+                "account_type": AccountType(account.get("subtype")),
+                "account_subtype": AccountSubtype(account.get("account_subtype")),
+            }
+            if account["subtype"] == AccountType.CREDIT.value:
+                new_account = CreditCardAccount(
+                    credit_limit=Decimal(account.get("credit_limit", 0.0)), 
+                    **kwargs
+                )
+            else:
+                new_account = Account(access_token=access_token, institution=institution.id, **kwargs)
+            db.session.add(new_account)
+            db.session.commit()
+
+    except plaid.ApiException as e:
+        error_response = format_error(e)
+        return jsonify(error_response)
+    
+    except Exception as e:
+        db.session.rollback()
+        error_response = create_formatted_error(500, str(e))
+        return jsonify(error_response)
+    
 
 # Retrieve ACH or ETF account numbers for an Item
 # https://plaid.com/docs/#auth
@@ -748,6 +812,10 @@ def poll_with_retries(request_callback, ms=1000, retries_left=20):
 
 def pretty_print_response(response):
   print(json.dumps(response, indent=2, sort_keys=True, default=str))
+
+def create_formatted_error(status_code: int, error_message: str):
+    return {'error': {'status_code': status_code, 'display_message':
+                    error_message, 'error_code': status_code, 'error_type': ''}}
 
 def format_error(e):
     response = json.loads(e.body)
