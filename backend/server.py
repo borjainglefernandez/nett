@@ -66,6 +66,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 from backend.models.account.account_subtype import AccountSubtype
 from models.account.credit_card_account import CreditCardAccount
+from models.item.item import Item
 from models.account.account import Account
 from models.account.account_type import AccountType
 from models.institution.institution import Institution
@@ -212,7 +213,7 @@ def create_link_token_for_payment():
         )
 
         if PLAID_REDIRECT_URI!=None:
-            linkRequest['redirect_uri'z]=PLAID_REDIRECT_URI
+            linkRequest['redirect_uri']=PLAID_REDIRECT_URI
         linkResponse = client.link_token_create(linkRequest)
         pretty_print_response(linkResponse.to_dict())
         return jsonify(linkResponse.to_dict())
@@ -314,53 +315,49 @@ def get_access_token():
     except plaid.ApiException as e:
         return json.loads(e.body)
 
-# Create account
-@app.route('/api/account', methods=['POST'])
-def create_account():
+# Get accounts
+@app.route('/api/account', methods=['GET'])
+def get_accounts():
+    all_accounts = Account.query.all()
+    return jsonify([account.to_dict() for account in all_accounts])
+
+# Get transactions for account
+@app.route('/api/account/<account_id>/transactions', methods=['GET'])
+def get_transactions(account_id):
+    account = Account.query.filter_by(id=account_id).one_or_none()
+    if not account:
+        return jsonify(create_formatted_error(404, f"Could not find account with id {item_id}."))
+    return jsonify(account.get_transactions())
+
+# Create item
+@app.route('/api/item', methods=['POST'])
+def create_item():
     access_token = request.form['access_token']
     try:
         request = ItemGetRequest(access_token=access_token)
         response = client.item_get(request)
         item = response['item']
 
-        # See if account exists and error if so
-        account = Account.query.filter_by(access_token=access_token).one_or_none()
-        if account:
-            error_response = create_formatted_error(409, "This account already exists")
+        item_id = item['item_id']
+        institution_id = item['institution_id']
+        institution_name = item['institution_name']
+
+        # See if item exists and error if so
+        item = Item.query.filter_by(access_token=access_token).one_or_none()
+        if item:
+            error_response = create_formatted_error(409, "This item already exists")
             return jsonify(error_response)
+        
+        # Create item
+        item = Item(id=item_id, institution=institution_id)
 
         # See if institution exists
-        institution = Institution.query.filter_by(plaid_institution_id=item['institution_id']).one_or_none()
+        institution = Institution.query.filter_by(id=institution_id).one_or_none()
         if not institution: # If not create one
-            institution = Institution(name=item['institution_name'], plaid_institution_id=item['institution_id'])
-            db.session.add(institution)
-            db.session.commit()
+            create_institution(institution_name, institution_id)
         
-        # TODO: use https://plaid.com/docs/api/products/balance/ to get more account info
         # Add new accounts
-        request = AccountsBalanceGetRequest(access_token=access_token)
-        response = client.accounts_balance_get(request)
-        accounts = response['accounts']
-
-        for account in accounts:
-            balances = account["balances"]
-            kwargs = {
-                "name": account.get("name"),
-                "plaid_account_id": account.get("account_id"),
-                "balance": Decimal(balances.get("current", 0.0)),
-                "last_updated": datetime.now(),
-                "account_type": AccountType(account.get("subtype")),
-                "account_subtype": AccountSubtype(account.get("account_subtype")),
-            }
-            if account["subtype"] == AccountType.CREDIT.value:
-                new_account = CreditCardAccount(
-                    credit_limit=Decimal(account.get("credit_limit", 0.0)), 
-                    **kwargs
-                )
-            else:
-                new_account = Account(access_token=access_token, institution=institution.id, **kwargs)
-            db.session.add(new_account)
-            db.session.commit()
+        add_accounts_from_item(access_token, item_id, institution_id)
 
     except plaid.ApiException as e:
         error_response = format_error(e)
@@ -371,6 +368,89 @@ def create_account():
         error_response = create_formatted_error(500, str(e))
         return jsonify(error_response)
     
+def create_institution(name: str, institution_id: str):    
+    institution = Institution(id=institution_id, name=name)
+    db.session.add(institution)
+    db.session.commit()
+
+def add_accounts_from_item(access_token: str, item_id: str, institution_id: str):
+    request = AccountsBalanceGetRequest(access_token=access_token)
+    response = client.accounts_balance_get(request)
+    accounts = response['accounts']
+
+    for account in accounts:
+        balances = account["balances"]
+        kwargs = {
+            "id": account.get("account_id"),
+            "name": account.get("name"),
+            "balance": Decimal(balances.get("current", 0.0)),
+            "last_updated": datetime.now(),
+            "account_type": AccountType(account.get("subtype")),
+            "account_subtype": AccountSubtype(account.get("account_subtype")),
+        }
+        if account["subtype"] == AccountType.CREDIT.value:
+            new_account = CreditCardAccount(
+                credit_limit=Decimal(account.get("credit_limit", 0.0)), 
+                **kwargs
+            )
+        else:
+            new_account = Account(access_token=access_token, item=item_id, institution=institution_id, **kwargs)
+        db.session.add(new_account)
+        db.session.commit()
+
+# Sync Transactions for Item
+@app.route("/api/item/<item_id>/sync", methods=['POST'])
+def sync_item_transactions(item_id: str):
+    item = Item.query.filter_by(id=item_id).one_or_none()
+
+    if not item:
+        return jsonify(create_formatted_error(404, f"Could not find item with id {item_id}."))
+    
+    cursor = item.cursor
+    
+    # New transaction updates since "cursor"
+    added = []
+    modified = []
+    removed = [] # Removed transaction ids
+    has_more = True
+
+    # Iterate through each page of new transaction updates for item
+    while has_more:
+        request = TransactionsSyncRequest(
+            access_token=access_token,
+            cursor=cursor,
+        )
+        response = client.transactions_sync(request)
+
+        # Add this page of results
+        added.extend(response['added'])
+        modified.extend(response['modified'])
+        removed.extend(response['removed'])
+
+        has_more = response['has_more']
+
+        # Update cursor to the next cursor
+        cursor = response['next_cursor']
+
+    handle_added_transactions(added)
+    handle_modified_transactions(modified)
+    handle_removed_transactions(removed)
+
+    # Update cursor to last one
+    item.cursor = cursor
+    db.session.commit()
+
+
+
+def handle_added_transactions(transactions: list):
+    pass
+    
+def handle_modified_transactions(transactions: list):
+    pass
+
+def handle_removed_transactions(transactions: list):
+    pass
+
 
 # Retrieve ACH or ETF account numbers for an Item
 # https://plaid.com/docs/#auth
