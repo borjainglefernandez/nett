@@ -1,6 +1,6 @@
-from server import db
-from account import Account
-from account_type import AccountType
+from models import db
+from models.account.account import Account
+from models.account.account_type import AccountType
 
 class CreditCardAccount(Account):
     __mapper_args__ = {
@@ -17,3 +17,8 @@ class CreditCardAccount(Account):
         base_dict = super().to_dict()  # Get dictionary from parent class
         base_dict["credit_limit"] = self.credit_limit  # Add credit_limit
         return base_dict
+    
+    def __repr__(self):
+        """Extend Account's __repr__ with credit_limit."""
+        base_repr = super().__repr__().rstrip(">")  # Remove closing '>' to append fields
+        return f"{base_repr}, credit_limit={self.credit_limit if self.credit_limit is not None else 'N/A'})>"

@@ -64,7 +64,8 @@ from plaid.model.cra_pdf_add_ons import CraPDFAddOns
 from plaid.api import plaid_api
 from flask_sqlalchemy import SQLAlchemy
 
-from backend.models.account.account_subtype import AccountSubtype
+from models import db  
+from models.account.account_subtype import AccountSubtype
 from models.account.credit_card_account import CreditCardAccount
 from models.item.item import Item
 from models.account.account import Account
@@ -86,9 +87,6 @@ PLAID_COUNTRY_CODES = os.getenv('PLAID_COUNTRY_CODES', 'US').split(',')
 # SQLite database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)
 
 def empty_to_none(field):
     value = os.getenv(field)
@@ -333,9 +331,10 @@ def get_transactions(account_id):
 @app.route('/api/item', methods=['POST'])
 def create_item():
     access_token = request.form['access_token']
+    print(access_token)
     try:
-        request = ItemGetRequest(access_token=access_token)
-        response = client.item_get(request)
+        get_item_request = ItemGetRequest(access_token=access_token)
+        response = client.item_get(get_item_request)
         item = response['item']
 
         item_id = item['item_id']
@@ -350,6 +349,7 @@ def create_item():
         
         # Create item
         item = Item(id=item_id, institution=institution_id)
+        print(item)
 
         # See if institution exists
         institution = Institution.query.filter_by(id=institution_id).one_or_none()
@@ -357,7 +357,8 @@ def create_item():
             create_institution(institution_name, institution_id)
         
         # Add new accounts
-        add_accounts_from_item(access_token, item_id, institution_id)
+        accounts = add_accounts_from_item(access_token, item_id, institution_id)
+        return jsonify([account.get_dict() for account in accounts])
 
     except plaid.ApiException as e:
         error_response = format_error(e)
@@ -370,6 +371,7 @@ def create_item():
     
 def create_institution(name: str, institution_id: str):    
     institution = Institution(id=institution_id, name=name)
+    print(institution)
     db.session.add(institution)
     db.session.commit()
 
@@ -377,6 +379,7 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
     request = AccountsBalanceGetRequest(access_token=access_token)
     response = client.accounts_balance_get(request)
     accounts = response['accounts']
+    new_accounts = []
 
     for account in accounts:
         balances = account["balances"]
@@ -395,8 +398,11 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
             )
         else:
             new_account = Account(access_token=access_token, item=item_id, institution=institution_id, **kwargs)
+        new_accounts.append(new_account)
         db.session.add(new_account)
-        db.session.commit()
+
+    db.session.commit()
+    return new_accounts
 
 # Sync Transactions for Item
 @app.route("/api/item/<item_id>/sync", methods=['POST'])
@@ -474,49 +480,49 @@ def get_auth():
 # https://plaid.com/docs/#transactions
 
 
-@app.route('/api/transactions', methods=['GET'])
-def get_transactions():
-    # Set cursor to empty to receive all historical updates
-    cursor = ''
+# @app.route('/api/transactions', methods=['GET'])
+# def get_transactions():
+#     # Set cursor to empty to receive all historical updates
+#     cursor = ''
 
-    # New transaction updates since "cursor"
-    added = []
-    modified = []
-    removed = [] # Removed transaction ids
-    has_more = True
-    try:
-        # Iterate through each page of new transaction updates for item
-        while has_more:
-            request = TransactionsSyncRequest(
-                access_token=access_token,
-                cursor=cursor,
-            )
-            response = client.transactions_sync(request).to_dict()
-            cursor = response['next_cursor']
-            # If no transactions are available yet, wait and poll the endpoint.
-            # Normally, we would listen for a webhook, but the Quickstart doesn't 
-            # support webhooks. For a webhook example, see 
-            # https://github.com/plaid/tutorial-resources or
-            # https://github.com/plaid/pattern
-            if cursor == '':
-                time.sleep(2)
-                continue  
-            # If cursor is not an empty string, we got results, 
-            # so add this page of results
-            added.extend(response['added'])
-            modified.extend(response['modified'])
-            removed.extend(response['removed'])
-            has_more = response['has_more']
-            pretty_print_response(response)
+#     # New transaction updates since "cursor"
+#     added = []
+#     modified = []
+#     removed = [] # Removed transaction ids
+#     has_more = True
+#     try:
+#         # Iterate through each page of new transaction updates for item
+#         while has_more:
+#             request = TransactionsSyncRequest(
+#                 access_token=access_token,
+#                 cursor=cursor,
+#             )
+#             response = client.transactions_sync(request).to_dict()
+#             cursor = response['next_cursor']
+#             # If no transactions are available yet, wait and poll the endpoint.
+#             # Normally, we would listen for a webhook, but the Quickstart doesn't 
+#             # support webhooks. For a webhook example, see 
+#             # https://github.com/plaid/tutorial-resources or
+#             # https://github.com/plaid/pattern
+#             if cursor == '':
+#                 time.sleep(2)
+#                 continue  
+#             # If cursor is not an empty string, we got results, 
+#             # so add this page of results
+#             added.extend(response['added'])
+#             modified.extend(response['modified'])
+#             removed.extend(response['removed'])
+#             has_more = response['has_more']
+#             pretty_print_response(response)
 
-        # Return the 8 most recent transactions
-        latest_transactions = sorted(added, key=lambda t: t['date'])[-8:]
-        return jsonify({
-            'latest_transactions': latest_transactions})
+#         # Return the 8 most recent transactions
+#         latest_transactions = sorted(added, key=lambda t: t['date'])[-8:]
+#         return jsonify({
+#             'latest_transactions': latest_transactions})
 
-    except plaid.ApiException as e:
-        error_response = format_error(e)
-        return jsonify(error_response)
+#     except plaid.ApiException as e:
+#         error_response = format_error(e)
+#         return jsonify(error_response)
 
 
 # Retrieve Identity data for an Item
@@ -560,18 +566,18 @@ def get_balance():
 # https://plaid.com/docs/#accounts
 
 
-@app.route('/api/accounts', methods=['GET'])
-def get_accounts():
-    try:
-        request = AccountsGetRequest(
-            access_token=access_token
-        )
-        response = client.accounts_get(request)
-        pretty_print_response(response.to_dict())
-        return jsonify(response.to_dict())
-    except plaid.ApiException as e:
-        error_response = format_error(e)
-        return jsonify(error_response)
+# @app.route('/api/accounts', methods=['GET'])
+# def get_accounts():
+#     try:
+#         request = AccountsGetRequest(
+#             access_token=access_token
+#         )
+#         response = client.accounts_get(request)
+#         pretty_print_response(response.to_dict())
+#         return jsonify(response.to_dict())
+#     except plaid.ApiException as e:
+#         error_response = format_error(e)
+#         return jsonify(error_response)
 
 
 # Create and then retrieve an Asset Report for one or more Items. Note that an

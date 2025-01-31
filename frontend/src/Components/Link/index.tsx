@@ -31,6 +31,15 @@ const Link = () => {
           return;
         }
         const data = await response.json();
+        const createItemReponse = await fetch("/api/item", {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            },
+            body: `access_token=${data.access_token}`,
+        })
+        const accountData = await createItemReponse.json();
+        console.log(accountData);
         dispatch({
           type: "SET_STATE",
           state: {

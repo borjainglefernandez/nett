@@ -1,6 +1,6 @@
-from server import db
-from backend.models.transaction.transaction_categories import TransactionCategories
-from backend.models.transaction.payment_channel import PaymentChannel
+from models import db
+from models.transaction.transaction_categories import TransactionCategories
+from models.transaction.payment_channel import PaymentChannel
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -28,3 +28,15 @@ class Transaction(db.Model):
             "channel": self.channel.value if self.channel else None,  # Convert Enum to string
             "account": self.account  # Account ID (foreign key reference)
         }
+
+    def __repr__(self):
+        return (
+            f"<Transaction(id={self.id}, "
+            f"name={self.name}, "
+            f"amount={float(self.amount)}, "
+            f"category={self.category.name if self.category else 'Unknown'}, "
+            f"merchant={self.merchant if self.merchant else 'N/A'}, "
+            f"logo_url={'Set' if self.logo_url else 'None'}, "
+            f"channel={self.channel.name if self.channel else 'Unknown'}, "
+            f"account={self.account})>"
+        )
