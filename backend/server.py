@@ -62,13 +62,13 @@ from plaid.model.cra_check_report_income_insights_get_request import CraCheckRep
 from plaid.model.cra_check_report_partner_insights_get_request import CraCheckReportPartnerInsightsGetRequest
 from plaid.model.cra_pdf_add_ons import CraPDFAddOns
 from plaid.api import plaid_api
-from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
 from models import db  
 from models.account.account_subtype import AccountSubtype
-from models.account.credit_card_account import CreditCardAccount
-from models.item.item import Item
+from models.transaction.txn import Txn
 from models.account.account import Account
+from models.item.item import Item
 from models.account.account_type import AccountType
 from models.institution.institution import Institution
 
@@ -87,6 +87,11 @@ PLAID_COUNTRY_CODES = os.getenv('PLAID_COUNTRY_CODES', 'US').split(',')
 # SQLite database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)  # 🔥 Fix: Bind the existing db instance to the app
+migrate = Migrate(app, db)  # Bind Flask-Migrate to Flask app and SQLAlchemy
+with app.app_context():
+    db.create_all()
+
 
 def empty_to_none(field):
     value = os.getenv(field)
@@ -340,6 +345,7 @@ def create_item():
         item_id = item['item_id']
         institution_id = item['institution_id']
         institution_name = item['institution_name']
+        print(response)
 
         # See if item exists and error if so
         item = Item.query.filter_by(access_token=access_token).one_or_none()
@@ -348,7 +354,9 @@ def create_item():
             return jsonify(error_response)
         
         # Create item
-        item = Item(id=item_id, institution=institution_id)
+        item = Item(id=item_id, access_token=access_token, institution_id=institution_id)
+        db.session.add(item)
+        db.session.commit()
         print(item)
 
         # See if institution exists
@@ -358,7 +366,8 @@ def create_item():
         
         # Add new accounts
         accounts = add_accounts_from_item(access_token, item_id, institution_id)
-        return jsonify([account.get_dict() for account in accounts])
+        print(accounts)
+        return jsonify([account.to_dict() for account in accounts])
 
     except plaid.ApiException as e:
         error_response = format_error(e)
@@ -383,21 +392,31 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
 
     for account in accounts:
         balances = account["balances"]
+
+        # Get account type
+        try:
+            account_type_str = str(account.get("type"))
+            account_type = AccountType(account_type_str)
+        except ValueError:
+            account_type = AccountType.OTHER 
+
+        # Get account subtype
+        try:
+            account_subtype_str = str(account.get("subtype"))
+            account_subtype = AccountSubtype(account_subtype_str)
+        except ValueError:
+            account_subtype = AccountSubtype.OTHER 
+
         kwargs = {
-            "id": account.get("account_id"),
+            "id": account.get("persistent_account_id"),
             "name": account.get("name"),
-            "balance": Decimal(balances.get("current", 0.0)),
+            "balance": Decimal(balances.get("available") or 0.0),
+            "limit": Decimal(balances.get("limit") or 0.0),
             "last_updated": datetime.now(),
-            "account_type": AccountType(account.get("subtype")),
-            "account_subtype": AccountSubtype(account.get("account_subtype")),
+            "account_type": account_type,
+            "account_subtype": account_subtype,
         }
-        if account["subtype"] == AccountType.CREDIT.value:
-            new_account = CreditCardAccount(
-                credit_limit=Decimal(account.get("credit_limit", 0.0)), 
-                **kwargs
-            )
-        else:
-            new_account = Account(access_token=access_token, item=item_id, institution=institution_id, **kwargs)
+        new_account = Account(access_token=access_token, item_id=item_id, institution_id=institution_id, **kwargs)
         new_accounts.append(new_account)
         db.session.add(new_account)
 

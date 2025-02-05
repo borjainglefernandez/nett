@@ -2,7 +2,7 @@ from models import db
 from models.transaction.transaction_categories import TransactionCategories
 from models.transaction.payment_channel import PaymentChannel
 
-class Transaction(db.Model):
+class Txn(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
@@ -14,7 +14,7 @@ class Transaction(db.Model):
     channel = db.Column(db.Enum(PaymentChannel))
 
     # Account foreign key
-    account = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    account_id = db.Column(db.String, db.ForeignKey('account.id'), nullable=False)
     
     def to_dict(self):
         """Convert Transaction object to a dictionary."""
