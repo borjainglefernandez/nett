@@ -71,6 +71,7 @@ from models.account.account import Account
 from models.item.item import Item
 from models.account.account_type import AccountType
 from models.institution.institution import Institution
+from sqlalchemy.exc import IntegrityError
 
 load_dotenv()
 
@@ -347,11 +348,7 @@ def create_item():
         institution_name = item['institution_name']
         print(response)
 
-        # See if item exists and error if so
-        item = Item.query.filter_by(access_token=access_token).one_or_none()
-        if item:
-            error_response = create_formatted_error(409, "This item already exists")
-            return jsonify(error_response)
+        # TODO: figure out logic to not add multiple of the same account
         
         # Create item
         item = Item(id=item_id, access_token=access_token, institution_id=institution_id)
@@ -366,10 +363,13 @@ def create_item():
         
         # Add new accounts
         accounts = add_accounts_from_item(access_token, item_id, institution_id)
-        print(accounts)
         return jsonify([account.to_dict() for account in accounts])
 
     except plaid.ApiException as e:
+        error_response = format_error(e)
+        return jsonify(error_response)
+    
+    except IntegrityError as e:
         error_response = format_error(e)
         return jsonify(error_response)
     
@@ -408,7 +408,7 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
             account_subtype = AccountSubtype.OTHER 
 
         kwargs = {
-            "id": account.get("persistent_account_id"),
+            "id": account.get("persistent_account_id") if account.get("persistent_account_id") else account.get("account_id"),
             "name": account.get("name"),
             "balance": Decimal(balances.get("available") or 0.0),
             "limit": Decimal(balances.get("limit") or 0.0),
