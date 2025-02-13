@@ -67,6 +67,8 @@ from flask_migrate import Migrate
 from models import db  
 from models.account.account_subtype import AccountSubtype
 from models.transaction.txn import Txn
+from models.transaction.transaction_categories import TransactionCategories
+from models.transaction.payment_channel import PaymentChannel
 from models.account.account import Account
 from models.item.item import Item
 from models.account.account_type import AccountType
@@ -370,7 +372,8 @@ def create_item():
         return jsonify(error_response)
     
     except IntegrityError as e:
-        error_response = format_error(e)
+        db.session.rollback()
+        error_response = create_formatted_error(500, str(e))
         return jsonify(error_response)
     
     except Exception as e:
@@ -391,6 +394,12 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
     new_accounts = []
 
     for account in accounts:
+        existing_account = Account.query.filter_by(name=account.get("name")).one_or_none()
+        if existing_account:
+            error_response = create_formatted_error(500, str(f"Account {existing_account.name} already exists."))
+            return jsonify(error_response)
+
+
         balances = account["balances"]
 
         # Get account type
@@ -426,49 +435,106 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
 # Sync Transactions for Item
 @app.route("/api/item/<item_id>/sync", methods=['POST'])
 def sync_item_transactions(item_id: str):
-    item = Item.query.filter_by(id=item_id).one_or_none()
+    try:
+        item = Item.query.filter_by(id=item_id).one_or_none()
 
-    if not item:
-        return jsonify(create_formatted_error(404, f"Could not find item with id {item_id}."))
+        if not item:
+            return jsonify(create_formatted_error(404, f"Could not find item with id {item_id}."))
+        
+        cursor = item.cursor
+        
+        # New transaction updates since "cursor"
+        added = []
+        modified = []
+        removed = [] # Removed transaction ids
+        has_more = True
+
+        # Iterate through each page of new transaction updates for item
+        while has_more:
+            request = TransactionsSyncRequest(
+                access_token=access_token,
+                cursor=cursor,
+            )
+            response = client.transactions_sync(request).to_dict()
+
+            # Add this page of results
+            added.extend(response['added'])
+            modified.extend(response['modified'])
+            removed.extend(response['removed'])
+
+            has_more = response['has_more']
+
+            # Update cursor to the next cursor
+            cursor = response['next_cursor']
+
+            if cursor == '':
+                time.sleep(2)
+                continue  
+            pretty_print_response(response)
+
+        handle_added_transactions(added)
+        handle_modified_transactions(modified)
+        handle_removed_transactions(removed)
+
+        # Update cursor to last one
+        item.cursor = cursor
+        db.session.commit()
+        accounts = Account.query.all()
+        return jsonify([account.get_transactions() for account in accounts])
+
+    except plaid.ApiException as e:
+        error_response = format_error(e)
+        return jsonify(error_response)
     
-    cursor = item.cursor
+    except IntegrityError as e:
+        db.session.rollback()
+        error_response = create_formatted_error(500, str(e))
+        return jsonify(error_response)
     
-    # New transaction updates since "cursor"
-    added = []
-    modified = []
-    removed = [] # Removed transaction ids
-    has_more = True
-
-    # Iterate through each page of new transaction updates for item
-    while has_more:
-        request = TransactionsSyncRequest(
-            access_token=access_token,
-            cursor=cursor,
-        )
-        response = client.transactions_sync(request)
-
-        # Add this page of results
-        added.extend(response['added'])
-        modified.extend(response['modified'])
-        removed.extend(response['removed'])
-
-        has_more = response['has_more']
-
-        # Update cursor to the next cursor
-        cursor = response['next_cursor']
-
-    handle_added_transactions(added)
-    handle_modified_transactions(modified)
-    handle_removed_transactions(removed)
-
-    # Update cursor to last one
-    item.cursor = cursor
-    db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        error_response = create_formatted_error(500, str(e))
+        return jsonify(error_response)
 
 
 
 def handle_added_transactions(transactions: list):
-    pass
+    for transaction in transactions:
+        existing_txn = Txn.query.filter_by(id=transaction["transaction_id"]).one_or_none()
+        if existing_txn:
+            continue
+
+        account = Account.query.filter_by(id=transaction["account_id"]).one_or_none()
+        if not account:
+            continue
+        
+        # Get account type
+        try:
+            txn_category_str = str(transaction["personal_finance_category"]["detailed"])
+            txn_category = TransactionCategories(txn_category_str)
+        except ValueError:
+            txn_category = TransactionCategories.OTHER 
+        
+        try:
+            payment_channel_str = str(transaction["payment_channel"])
+            payment_channel = PaymentChannel(payment_channel_str)
+        except ValueError:
+            payment_channel = PaymentChannel.OTHER 
+
+        kwargs = {
+            "name": transaction.get("name"),
+            "amount": Decimal(transaction.get("amount") or 0.0),
+            "date": transaction.get("date"),
+            "date_time": transaction.get("datetime"),
+            "category": txn_category,
+            "merchant": transaction.get("merchant_name"),
+            "logo_url": transaction.get("logo_url"),
+            "channel": payment_channel,
+        }
+        new_txn = Txn(id=transaction.get("transaction_id"), account_id=account.id, **kwargs)
+        db.session.add(new_txn)
+    db.session.commit()
+
     
 def handle_modified_transactions(transactions: list):
     pass

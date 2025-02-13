@@ -40,6 +40,15 @@ const Link = () => {
         })
         const accountData = await createItemReponse.json();
         console.log(accountData);
+        const getItemTransactionsResponse = await fetch("/api/item/" + data.item_id + "/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          },
+        })
+        const transactionData = await getItemTransactionsResponse.json();
+        console.log(transactionData);
+
         dispatch({
           type: "SET_STATE",
           state: {
