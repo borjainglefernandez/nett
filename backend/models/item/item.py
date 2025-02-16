@@ -1,4 +1,7 @@
+from typing import List
+from models.account.account import Account
 from models import db
+
 
 class Item(db.Model):
     id = db.Column(db.String(120), primary_key=True)
@@ -6,9 +9,27 @@ class Item(db.Model):
     cursor = db.Column(db.String(500), nullable=False, default="")
 
     # Institution foreign key
-    institution_id = db.Column(db.String, db.ForeignKey('institution.id'), nullable=False)
+    institution_id = db.Column(
+        db.String, db.ForeignKey("institution.id"), nullable=False
+    )
 
-    accounts = db.relationship('Account', backref='item', lazy=True)
+    accounts = db.relationship("Account", backref="item", lazy=True)
+
+    def __init__(
+        self,
+        id: str,
+        access_token: str,
+        institution_id: str,
+        cursor: str = "",
+        accounts: List[Account] = None,
+    ):
+        if accounts is None:
+            accounts = []
+        self.id = id
+        self.access_token = access_token
+        self.institution_id = institution_id
+        self.cursor = cursor
+        self.accounts = accounts
 
     def __repr__(self):
         return (

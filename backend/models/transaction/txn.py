@@ -1,12 +1,16 @@
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional, Type
 from models import db
 from models.transaction.transaction_categories import TransactionCategories
 from models.transaction.payment_channel import PaymentChannel
+
 
 class Txn(db.Model):
     id = db.Column(db.String(120), primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
-    category = db.Column(db.Enum(TransactionCategories), nullable=False)  
+    category = db.Column(db.Enum(TransactionCategories), nullable=False)
     date = db.Column(db.DateTime, nullable=True)
     date_time = db.Column(db.DateTime, nullable=True)
 
@@ -15,8 +19,33 @@ class Txn(db.Model):
     channel = db.Column(db.Enum(PaymentChannel))
 
     # Account foreign key
-    account_id = db.Column(db.String, db.ForeignKey('account.id'), nullable=False)
-    
+    account_id = db.Column(db.String, db.ForeignKey(
+        'account.id'), nullable=False)
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        amount: Decimal,
+        category: Type[TransactionCategories],  # type: ignore
+        date: Optional[datetime] = None,
+        date_time: Optional[datetime] = None,
+        merchant: Optional[str] = None,
+        logo_url: Optional[str] = None,
+        channel: Optional[PaymentChannel] = None,
+        account_id: str = None
+    ):
+        self.id = id
+        self.name = name
+        self.amount = amount
+        self.category = category
+        self.date = date
+        self.date_time = date_time
+        self.merchant = merchant
+        self.logo_url = logo_url
+        self.channel = channel
+        self.account_id = account_id
+
     def to_dict(self):
         """Convert Transaction object to a dictionary."""
         return {
