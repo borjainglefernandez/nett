@@ -1,19 +1,8 @@
 import { createContext, useReducer, Dispatch, ReactNode } from "react";
 
 interface QuickstartState {
-  linkSuccess: boolean;
-  isItemAccess: boolean;
-  isPaymentInitiation: boolean;
-  isUserTokenFlow: boolean;
-  isCraProductsExclusively: boolean;
   linkToken: string | null;
-  accessToken: string | null;
-  userToken: string | null;
-  itemId: string | null;
-  isError: boolean;
-  backend: boolean;
-  products: string[];
-  linkTokenError: {
+  error: {
     error_message: string;
     error_code: string;
     error_type: string;
@@ -21,19 +10,8 @@ interface QuickstartState {
 }
 
 const initialState: QuickstartState = {
-  linkSuccess: false,
-  isItemAccess: true,
-  isPaymentInitiation: false,
-  isCraProductsExclusively: false,
-  isUserTokenFlow: false,
   linkToken: "", // Don't set to null or error message will show up briefly when site loads
-  userToken: null,
-  accessToken: null,
-  itemId: null,
-  isError: false,
-  backend: true,
-  products: ["transactions"],
-  linkTokenError: {
+  error: {
     error_type: "",
     error_code: "",
     error_message: "",

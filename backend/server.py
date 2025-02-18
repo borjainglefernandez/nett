@@ -4,6 +4,7 @@ import os
 import json
 import time
 from datetime import date, datetime, timedelta
+from http import HTTPStatus
 
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -40,6 +41,7 @@ from models.item.item import Item
 from models.account.account_type import AccountType
 from models.institution.institution import Institution
 from sqlalchemy.exc import IntegrityError
+
 
 load_dotenv()
 
@@ -181,7 +183,7 @@ def get_access_token():
         exchange_response = client.item_public_token_exchange(exchange_request)
         return jsonify(exchange_response.to_dict())
     except plaid.ApiException as e:
-        return json.loads(e.body)
+        return json.loads(e.body), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
 # Get accounts
@@ -200,8 +202,14 @@ def get_accounts():
 def get_transactions(account_id):
     account = Account.query.filter_by(id=account_id).one_or_none()
     if not account:
-        return jsonify(
-            create_formatted_error(404, f"Could not find account with id {item_id}.")
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.NOT_FOUND.value,
+                    f"Could not find account with id {item_id}.",
+                )
+            ),
+            HTTPStatus.NOT_FOUND.value,
         )
     return jsonify(account.get_transactions())
 
@@ -212,7 +220,6 @@ def get_transactions(account_id):
 @app.route("/api/item", methods=["POST"])
 def create_item():
     access_token = request.form["access_token"]
-    print(access_token)
     try:
         get_item_request = ItemGetRequest(access_token=access_token)
         response = client.item_get(get_item_request)
@@ -221,7 +228,6 @@ def create_item():
         item_id = item["item_id"]
         institution_id = item["institution_id"]
         institution_name = item["institution_name"]
-        print(response)
 
         # TODO: figure out logic to not add multiple of the same account
 
@@ -243,17 +249,17 @@ def create_item():
 
     except plaid.ApiException as e:
         error_response = format_error(e)
-        return jsonify(error_response)
+        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
     except IntegrityError as e:
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
-        return jsonify(error_response)
+        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
     except Exception as e:
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
-        return jsonify(error_response)
+        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
 def create_institution(name: str, institution_id: str):
@@ -274,9 +280,10 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
         ).one_or_none()
         if existing_account:
             error_response = create_formatted_error(
-                500, str(f"Account {existing_account.name} already exists.")
+                HTTPStatus.CONFLICT.value,
+                str(f"Account {existing_account.name} already exists."),
             )
-            return jsonify(error_response)
+            return jsonify(error_response), HTTPStatus.CONFLICT.value
 
         balances = account["balances"]
 
@@ -368,17 +375,17 @@ def sync_item_transactions(item_id: str):
 
     except plaid.ApiException as e:
         error_response = format_error(e)
-        return jsonify(error_response)
+        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
     except IntegrityError as e:
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
-        return jsonify(error_response)
+        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
     except Exception as e:
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
-        return jsonify(error_response)
+        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
 def handle_added_transactions(transactions: list):
