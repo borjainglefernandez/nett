@@ -81,9 +81,12 @@ const Link = () => {
   }, [ready, open, isOauth]);
 
   return (
-    <Button type="button" large onClick={() => open()} disabled={!ready}>
-      Launch Link
-    </Button>
+    <div className="flex flex-col space-y-4 p-4 max-w-md mx-auto">
+
+      <Button type="button" large onClick={() => open()} disabled={!ready}>
+        {ready ? "Add new account": "Server Unreachable"}
+      </Button>
+    </div>
   );
 };
 

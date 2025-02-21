@@ -10,10 +10,10 @@ const Header = () => {
 
   return (
     <div className={styles.grid}>
-      <h3 className={styles.title}>Plaid Quickstart</h3>
+      <h3 className={styles.title}>Nett</h3>
         <>
           <h4 className={styles.subtitle}>
-            A sample end-to-end integration with Plaid
+            Never miss a transaction
           </h4>
           <p className={styles.introPar}>
             The Plaid flow begins when your user wants to connect their bank
