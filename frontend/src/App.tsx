@@ -1,4 +1,10 @@
 import { useEffect, useContext, useCallback, useState } from "react";
+import {
+	ColDef,
+	AllCommunityModule,
+	ModuleRegistry,
+	ClientSideRowModelModule,
+} from "ag-grid-community";
 
 import Header from "./Components/Headers";
 import Context from "./Context";
@@ -6,6 +12,8 @@ import Card from "@mui/material/Card";
 import styles from "./App.module.scss";
 import Account from "./Models/Account";
 import AccountTable from "./Components/AccountTable/AccountTable";
+
+
 
 const App = () => {
 	const [accounts, setAccounts] = useState<Account[]>([]);
@@ -55,7 +63,6 @@ const App = () => {
 				last_updated: new Date(item.last_updated),
 			}));
 			setAccounts(fetchedAccounts);
-			console.log(accounts);
 		}
 	}, [accounts]);
 
@@ -79,14 +86,14 @@ const App = () => {
 	}, [dispatch, generateToken]);
 
 	return (
-		<div className={styles.App}>
-			<div className={styles.container}>
-				<Header />
-				<Card>
-					<AccountTable accounts={accounts} />
-				</Card>
-			</div>
+		// <div className={styles.App}>
+		<div>
+			<Header />
+			<Card>
+				<AccountTable accounts={accounts} />
+			</Card>
 		</div>
+		// </div> */}
 	);
 };
 

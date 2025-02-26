@@ -77,7 +77,7 @@ interface Account {
   account_type: AccountType;
   account_subtype: AccountSubtype;
   balance: number;
-  institution_id: string;
+  institution_name: string;
   last_updated: Date;
 }
 

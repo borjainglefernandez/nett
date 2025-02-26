@@ -73,7 +73,7 @@ class Account(db.Model):
                 if self.last_updated
                 else None
             ),
-            "institution_id": str(self.institution),
+            "institution_name": self.institution.name,
             "account_type": self.account_type.value if self.account_type else None,
             "account_subtype": (
                 self.account_subtype.value if self.account_subtype else None
