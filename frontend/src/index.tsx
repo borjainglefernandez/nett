@@ -3,14 +3,18 @@ import ReactDOM from "react-dom";
 import App from "./App";
 import { QuickstartProvider } from "./Context";
 import reportWebVitals from "./reportWebVitals";
+import { ThemeProvider, CssBaseline } from "@mui/material";
+import theme from "./theme";
 
 ReactDOM.render(
-  <React.StrictMode>
-    <QuickstartProvider>
-      <App />
-    </QuickstartProvider>
-  </React.StrictMode>,
-  document.getElementById("root")
+	<React.StrictMode>
+		<QuickstartProvider>
+			<ThemeProvider theme={theme}>
+				<App />
+			</ThemeProvider>
+		</QuickstartProvider>
+	</React.StrictMode>,
+	document.getElementById("root")
 );
 
 // If you want to start measuring performance in your app, pass a function

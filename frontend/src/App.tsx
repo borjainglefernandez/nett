@@ -1,22 +1,19 @@
 import { useEffect, useContext, useCallback, useState } from "react";
-import {
-	ColDef,
-	AllCommunityModule,
-	ModuleRegistry,
-	ClientSideRowModelModule,
-} from "ag-grid-community";
 
 import Header from "./Components/Headers";
 import Context from "./Context";
-import Card from "@mui/material/Card";
 import styles from "./App.module.scss";
 import Account from "./Models/Account";
-import AccountTable from "./Components/AccountTable/AccountTable";
-
-
+import Transaction from "./Models/Transaction";
+import TransactionTable from "./Components/TransactionTable/TransactionTable";
+import AccountList from "./Components/AccountsList/AccountList";
+import capitalizeWords from "./Utils/StringUtils";
 
 const App = () => {
+	// Hooks
 	const [accounts, setAccounts] = useState<Account[]>([]);
+	const [selectedAccounts, setSelectedAccounts] = useState<Account[]>([]);
+	const [transactions, setTransactions] = useState<Transaction[]>([]);
 	const { dispatch } = useContext(Context);
 
 	const generateToken = useCallback(async () => {
@@ -60,11 +57,59 @@ const App = () => {
 		if (data) {
 			const fetchedAccounts: Account[] = data.map((item: any) => ({
 				...item,
+				account_type: capitalizeWords(item.account_type),
+				account_subtype: capitalizeWords(item.account_subtype),
 				last_updated: new Date(item.last_updated),
 			}));
 			setAccounts(fetchedAccounts);
+			setSelectedAccounts(fetchedAccounts);
 		}
-	}, [accounts]);
+	}, []);
+
+	const getTransactions = useCallback(async () => {
+		const allTransactions: Transaction[] = [];
+		await Promise.all(
+			selectedAccounts.map(async (account) => {
+				try {
+					const response = await fetch(
+						`/api/account/${account.id}/transactions`
+					);
+					if (!response.ok) {
+						throw new Error(
+							`Failed to fetch transactions for account ${account.id}`
+						);
+					}
+					const data = await response.json();
+
+					// Convert response to Transaction model
+					const transactionsForAccount: Transaction[] = data.map(
+						(transaction: any) => ({
+							...transaction,
+							amount: Number(transaction.amount), // Ensure amount is a number
+							date: transaction.date ? new Date(transaction.date) : null, // Convert date
+							datetime: transaction.date
+								? new Date(transaction.dateTime)
+								: null, // Convert date
+							accountId: account.id, // Associate transactions with account
+							accountName: account.name,
+						})
+					);
+
+					allTransactions.push(...transactionsForAccount);
+				} catch (error) {
+					console.error(error);
+				}
+			})
+		);
+		allTransactions.sort((a: Transaction, b: Transaction) => {
+			// TODO FIX THE SORTING
+			console.log(a.date);
+			console.log(b.date);
+			console.log((a.date ?? Date()) < (b.date ?? Date()) ? 0 : 1);
+			return (a.date ?? Date()) < (b.date ?? Date()) ? 0 : 1;
+		});
+		setTransactions(allTransactions); // Update state after all requests complete
+	}, [selectedAccounts]);
 
 	useEffect(() => {
 		const init = async () => {
@@ -83,17 +128,42 @@ const App = () => {
 			getAccounts();
 		};
 		init();
-	}, [dispatch, generateToken]);
+	}, [dispatch, generateToken, getAccounts]);
+
+	useEffect(() => {
+		getTransactions();
+	}, [selectedAccounts, getTransactions]);
+
+	// Functions
+	const selectDeselectAccount = (account: Account, select: boolean) => {
+		var newSelectedAccounts = selectedAccounts.concat(); // Make copy
+		const selected = newSelectedAccounts.includes(account);
+		if (select && !selected) {
+			// Need to select
+			newSelectedAccounts.push(account);
+		}
+		if (!select && selected) {
+			// Need to deselect
+			newSelectedAccounts = newSelectedAccounts.filter(
+				(accountToCompare) => accountToCompare !== account
+			);
+		}
+		setSelectedAccounts(newSelectedAccounts);
+	};
 
 	return (
-		// <div className={styles.App}>
-		<div>
-			<Header />
-			<Card>
-				<AccountTable accounts={accounts} />
-			</Card>
+		<div className={styles.App}>
+			<div className={styles.container}>
+				<Header />
+				<br></br>
+				<AccountList
+					accounts={accounts}
+					selectDeselectAccount={selectDeselectAccount}
+				/>
+				<br></br>
+				<TransactionTable transactions={transactions} />
+			</div>
 		</div>
-		// </div> */}
 	);
 };
 
