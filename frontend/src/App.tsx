@@ -101,13 +101,6 @@ const App = () => {
 				}
 			})
 		);
-		allTransactions.sort((a: Transaction, b: Transaction) => {
-			// TODO FIX THE SORTING
-			console.log(a.date);
-			console.log(b.date);
-			console.log((a.date ?? Date()) < (b.date ?? Date()) ? 0 : 1);
-			return (a.date ?? Date()) < (b.date ?? Date()) ? 0 : 1;
-		});
 		setTransactions(allTransactions); // Update state after all requests complete
 	}, [selectedAccounts]);
 
@@ -132,7 +125,7 @@ const App = () => {
 
 	useEffect(() => {
 		getTransactions();
-	}, [selectedAccounts, getTransactions]);
+	}, [selectedAccounts]);
 
 	// Functions
 	const selectDeselectAccount = (account: Account, select: boolean) => {

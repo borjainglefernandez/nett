@@ -1,8 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { DataGrid } from "@mui/x-data-grid";
 import { Paper } from "@mui/material";
 import Transaction from "../../Models/Transaction";
-import formatDate from "../../Utils/DateUtils";
 
 interface TransactionTableProps {
 	transactions: Transaction[];
@@ -23,7 +22,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				new Date(v1).getTime() - new Date(v2).getTime(),
 		},
 		{ field: "name", headerName: "Name", ...defaultColumnProps },
-		{ field: "amount", headerName: "Amount", ...defaultColumnProps, flex: 0.5 },
+		{
+			field: "amount",
+			headerName: "Amount",
+			...defaultColumnProps,
+			flex: 0.5,
+			valueFormatter: (amount: number) => {
+				return amount < 0
+					? `-$${Math.abs(amount).toFixed(2)}`
+					: `$${amount.toFixed(2)}`;
+			},
+		},
 		{
 			field: "category",
 			headerName: "Category",
@@ -40,19 +49,23 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const paginationModel = { page: 0, pageSize: 5 };
 
 	// Prepare rows by adding a unique key to each row (id)
-	const rows = transactions.map((transaction) => ({
-		id: transaction.id,
-		name: transaction.name,
-		amount: transaction.amount,
-		category: transaction.category,
-		date: transaction.date,
-		dateTime: transaction.dateTime,
-		merchant: transaction.merchant,
-		logoUrl: transaction.logoUrl,
-		channel: transaction.channel,
-		accountId: transaction.accountId,
-		accountName: transaction.accountName,
-	}));
+	const rows = useMemo(
+		() =>
+			transactions.map((transaction) => ({
+				id: transaction.id,
+				name: transaction.name,
+				amount: transaction.amount,
+				category: transaction.category,
+				date: transaction.date,
+				dateTime: transaction.dateTime,
+				merchant: transaction.merchant,
+				logoUrl: transaction.logoUrl,
+				channel: transaction.channel,
+				accountId: transaction.accountId,
+				accountName: transaction.accountName,
+			})),
+		[transactions]
+	);
 
 	return (
 		<Paper sx={{ height: 400, width: "100%" }}>
