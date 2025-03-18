@@ -12,7 +12,11 @@ const AccountList: React.FC<AccountListProps> = ({
 	selectDeselectAccount,
 }) => {
 	return (
-		<Grid2 container spacing={3}>
+		<Grid2
+			container
+			spacing={3}
+			alignItems='flex-start'
+		>
 			{accounts.map((account: Account, i: number) => {
 				return (
 					<AccountSelectableCard

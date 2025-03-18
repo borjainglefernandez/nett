@@ -20,6 +20,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			...defaultColumnProps,
 			sortComparator: (v1: Date, v2: Date) =>
 				new Date(v1).getTime() - new Date(v2).getTime(),
+			valueFormatter: (date: Date) => {
+				return new Intl.DateTimeFormat("en-US", {
+					weekday: "short", // e.g., Sun
+					year: "numeric", // e.g., 2025
+					month: "2-digit", // e.g., 02
+					day: "2-digit", // e.g., 16
+					hour: "2-digit", // e.g., 12
+					minute: "2-digit", // e.g., 30
+					hour12: true, // Use AM/PM format
+				}).format(date);
+			},
 		},
 		{ field: "name", headerName: "Name", ...defaultColumnProps },
 		{

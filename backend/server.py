@@ -1,4 +1,6 @@
 # Read env vars from .env file
+from collections import defaultdict
+import csv
 from decimal import Decimal
 import os
 import json
@@ -212,6 +214,24 @@ def get_transactions(account_id):
             HTTPStatus.NOT_FOUND.value,
         )
     return jsonify(account.get_transactions())
+
+
+# Get transaction categories
+
+
+@app.route("/api/transaction/categories", methods=["GET"])
+def get_categories():
+    category_dict = defaultdict(dict)
+    with open(
+        "assets/plaid_categories.csv", newline="", encoding="utf-8"
+    ) as category_file:
+        csv_reader = csv.DictReader(category_file)
+        for row in csv_reader:
+            primary = row["PRIMARY"]
+            detailed = row["DETAILED"]
+            description = row["DESCRIPTION"]
+            category_dict[primary][detailed] = description
+    return jsonify(category_dict)
 
 
 # Create item
