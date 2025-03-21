@@ -219,9 +219,29 @@ def get_transactions(account_id):
 # Get transaction categories
 
 
+# @app.route("/api/transaction/categories", methods=["GET"])
+# def get_categories():
+#     category_dict = defaultdict(dict)
+#     with open(
+#         "assets/plaid_categories.csv", newline="", encoding="utf-8"
+#     ) as category_file:
+#         csv_reader = csv.DictReader(category_file)
+#         for row in csv_reader:
+#             primary = row["PRIMARY"]
+#             detailed = row["DETAILED"]
+#             description = row["DESCRIPTION"]
+#             if not category_dict[primary]:
+#                 category_dict[primary] = []
+
+
+#             sub_category_dict = {"subcategory": detailed, "description": description}
+#             category_dict[primary].append(sub_category_dict)
+#     return jsonify(category_dict)
 @app.route("/api/transaction/categories", methods=["GET"])
 def get_categories():
-    category_dict = defaultdict(dict)
+    categories_list = []
+    category_dict = defaultdict(list)
+
     with open(
         "assets/plaid_categories.csv", newline="", encoding="utf-8"
     ) as category_file:
@@ -230,8 +250,15 @@ def get_categories():
             primary = row["PRIMARY"]
             detailed = row["DETAILED"]
             description = row["DESCRIPTION"]
-            category_dict[primary][detailed] = description
-    return jsonify(category_dict)
+
+            sub_category_dict = {"subcategory": detailed, "description": description}
+            category_dict[primary].append(sub_category_dict)
+
+    # Convert dict to list of objects
+    for category, subcategories in category_dict.items():
+        categories_list.append({"name": category, "subcategories": subcategories})
+
+    return jsonify(categories_list)
 
 
 # Create item
