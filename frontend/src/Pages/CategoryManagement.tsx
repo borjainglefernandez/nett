@@ -1,212 +1,148 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { TextField, Button, Box, Typography, Grid, Grid2 } from "@mui/material";
+import { TextField, Button, Box, Typography, Grid, Card } from "@mui/material";
 import { Category, Subcategory } from "../Models/Category";
+import CategoryCard from "../Components/CategoryManagement/CategoryCard";
 
 const CategoryManagement = () => {
-	const [categories, setCategories] = useState<Category[]>([]); // Use the Category type here
+	const [categories, setCategories] = useState<Category[]>([]);
 	const [newCategory, setNewCategory] = useState<string>("");
 
-	// Fetch categories from the API
 	useEffect(() => {
 		const fetchCategories = async () => {
 			try {
 				const response = await axios.get("/api/transaction/categories");
-				const fetchedCategories: Category[] = response.data; // Type the response as Category[]
-				setCategories(fetchedCategories);
+				setCategories(response.data);
 			} catch (error) {
 				console.error("Error fetching categories", error);
 			}
 		};
-
 		fetchCategories();
 	}, []);
 
-	const handleCategoryChange = (categoryName: string, value: string) => {
+	// Handlers
+	const handleCategoryChange = (category: Category, value: string) => {
 		setCategories((prev) =>
-			prev.map((category) =>
-				category.name === categoryName ? { ...category, name: value } : category
+			prev.map((otherCategory: Category) =>
+				otherCategory.name === category.name
+					? { ...otherCategory, name: value }
+					: otherCategory
 			)
 		);
 	};
 
 	const handleSubcategoryChange = (
-		categoryName: string,
-		subcategoryName: string,
+		category: Category,
+		subcategory: Subcategory,
 		field: string,
 		value: string
 	) => {
 		setCategories((prev) =>
-			prev.map((category) =>
-				category.name === categoryName
+			prev.map((otherCategory: Category) =>
+				category.name === otherCategory.name
 					? {
-							...category,
-							subcategories: category.subcategories.map((subcategory) =>
-								subcategory.subcategory === subcategoryName
-									? { ...subcategory, [field]: value }
-									: subcategory
+							...otherCategory,
+							subcategories: otherCategory.subcategories.map(
+								(otherSubcategory: Subcategory) =>
+									subcategory.subcategory === otherSubcategory.subcategory
+										? { ...otherSubcategory, [field]: value }
+										: otherSubcategory
 							),
 					  }
-					: category
+					: otherCategory
 			)
 		);
 	};
 
-	const handleAddSubcategory = (categoryName: string) => {
-		const newSubcategory: Subcategory = {
-			description: "",
-			subcategory: "",
-		};
+	const handleAddSubcategory = (category: Category) => {
 		setCategories((prev) =>
-			prev.map((category) =>
-				category.name === categoryName
+			prev.map((otherCategory) =>
+				category.name === otherCategory.name
 					? {
-							...category,
-							subcategories: [...category.subcategories, newSubcategory],
+							...otherCategory,
+							subcategories: [
+								...category.subcategories,
+								{ subcategory: "", description: "" },
+							],
 					  }
-					: category
+					: otherCategory
 			)
 		);
 	};
 
 	const handleDeleteSubcategory = (
-		categoryName: string,
-		subcategoryName: string
+		category: Category,
+		subcategory: Subcategory
 	) => {
 		setCategories((prev) =>
-			prev.map((category) =>
-				category.name === categoryName
+			prev.map((otherCategory: Category) =>
+				category.name === otherCategory.name
 					? {
-							...category,
-							subcategories: category.subcategories.filter(
-								(subcategory) => subcategory.subcategory !== subcategoryName
+							...otherCategory,
+							subcategories: otherCategory.subcategories.filter(
+								(otherSubcategory: Subcategory) =>
+									subcategory.subcategory !== otherSubcategory.subcategory
 							),
 					  }
-					: category
+					: otherCategory
 			)
 		);
 	};
 
 	const handleAddCategory = () => {
-		const newCategoryData: Category = {
-			name: newCategory,
-			subcategories: [],
-		};
-		setCategories((prev) => [...prev, newCategoryData]);
-		setNewCategory(""); // Reset new category input
+		if (!newCategory.trim()) return;
+		setCategories((prev) => [
+			...prev,
+			{ name: newCategory, subcategories: [] },
+		]);
+		setNewCategory("");
+	};
+
+	const handleDeleteCategory = (category: Category) => {
+		setCategories((prev) => prev.filter((cat) => cat.name !== category.name));
 	};
 
 	return (
-		<Box>
-			<Typography variant='h4'>Category Management</Typography>
-			<Box>
-				<Grid2 container spacing={2} alignItems='center'>
-					<Grid2>
+		<Box sx={{ maxWidth: "900px", margin: "auto", padding: "20px" }}>
+			<Typography variant='h4' gutterBottom sx={{ fontWeight: "bold" }}>
+				Category Management
+			</Typography>
+
+			{/* ADD NEW CATEGORY */}
+			<Card sx={{ padding: "20px", marginBottom: "20px", boxShadow: 2 }}>
+				<Grid container spacing={2} alignItems='center'>
+					<Grid item xs={8}>
 						<TextField
 							fullWidth
 							label='New Category Name'
 							value={newCategory}
 							onChange={(e) => setNewCategory(e.target.value)}
+							sx={{ backgroundColor: "white", borderRadius: 1 }}
 						/>
-					</Grid2>
-					<Grid2>
-						<Button variant='contained' onClick={handleAddCategory}>
+					</Grid>
+					<Grid item xs={4}>
+						<Button
+							fullWidth
+							variant='contained'
+							color='primary'
+							onClick={handleAddCategory}
+						>
 							Add Category
 						</Button>
-					</Grid2>
-				</Grid2>
-				{categories.map((category: Category) => (
-					<Box key={category.name} sx={{ marginBottom: "20px" }}>
-						<Grid2 container spacing={2} alignItems='center'>
-							<Grid2>
-								<TextField
-									fullWidth
-									label='Category Name'
-									value={category.name}
-									onChange={(e) =>
-										handleCategoryChange(category.name, e.target.value)
-									}
-								/>
-							</Grid2>
-							<Grid2>
-								<Button
-									variant='outlined'
-									color='error'
-									onClick={() =>
-										setCategories((prev) =>
-											prev.filter((cat) => cat.name !== category.name)
-										)
-									}
-								>
-									Delete Category
-								</Button>
-							</Grid2>
-						</Grid2>
-						{category.subcategories.map((subcategory, index) => (
-							<Box
-								key={subcategory.subcategory}
-								sx={{ paddingLeft: "20px", marginTop: "10px" }}
-							>
-								<Grid container spacing={2} alignItems='center'>
-									<Grid item xs={5}>
-										<TextField
-											fullWidth
-											label='Subcategory Name'
-											value={subcategory.subcategory}
-											onChange={(e) =>
-												handleSubcategoryChange(
-													category.name,
-													subcategory.subcategory,
-													"subcategory",
-													e.target.value
-												)
-											}
-										/>
-									</Grid>
-									<Grid item xs={5}>
-										<TextField
-											fullWidth
-											label='Description'
-											value={subcategory.description}
-											onChange={(e) =>
-												handleSubcategoryChange(
-													category.name,
-													subcategory.subcategory,
-													"description",
-													e.target.value
-												)
-											}
-										/>
-									</Grid>
-									<Grid item xs={2}>
-										<Button
-											variant='outlined'
-											color='error'
-											onClick={() =>
-												handleDeleteSubcategory(
-													category.name,
-													subcategory.subcategory
-												)
-											}
-										>
-											Delete Subcategory
-										</Button>
-									</Grid>
-								</Grid>
-							</Box>
-						))}
+					</Grid>
+				</Grid>
+			</Card>
 
-						<Box sx={{ marginTop: "10px" }}>
-							<Button
-								variant='outlined'
-								onClick={() => handleAddSubcategory(category.name)}
-							>
-								Add Subcategory
-							</Button>
-						</Box>
-					</Box>
-				))}
-			</Box>
+			{categories.map((category) => (
+				<CategoryCard
+					category={category}
+					handleCategoryChange={handleCategoryChange}
+					handleDeleteCategory={handleDeleteCategory}
+					handleAddSubcategory={handleAddSubcategory}
+					handleSubcategoryChange={handleSubcategoryChange}
+					handleDeleteSubcategory={handleDeleteSubcategory}
+				/>
+			))}
 		</Box>
 	);
 };
