@@ -1,9 +1,5 @@
-import Box from "@mui/material/Box";
+import { Box, Button, Divider, Grid2, TextField } from "@mui/material";
 import { Category, Subcategory } from "../../Models/Category";
-import Divider from "@mui/material/Divider";
-import Grid from "@mui/material/Grid";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
 
 interface SubcategoryRowProps {
 	category: Category;
@@ -27,14 +23,14 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 	handleDeleteSubcategory,
 }) => {
 	return (
-		<Box key={subcategory.subcategory} sx={{ marginTop: "10px" }}>
+		<Box key={subcategory.name} sx={{ marginTop: "10px" }}>
 			<Divider sx={{ marginBottom: "10px" }} />
-			<Grid container spacing={2} alignItems='center'>
-				<Grid item xs={5}>
+			<Grid2 container spacing={2} alignItems='center'>
+				<Grid2 size={5}>
 					<TextField
 						fullWidth
 						label='Subcategory Name'
-						value={subcategory.subcategory.replace(/_/g, " ")}
+						value={subcategory.name.replace(/_/g, " ")}
 						onChange={(e) =>
 							handleSubcategoryChange(
 								category,
@@ -45,8 +41,8 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 						}
 						sx={{ backgroundColor: "white", borderRadius: 1 }}
 					/>
-				</Grid>
-				<Grid item xs={5}>
+				</Grid2>
+				<Grid2 size={5}>
 					<TextField
 						fullWidth
 						label='Description'
@@ -61,8 +57,8 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 						}
 						sx={{ backgroundColor: "white", borderRadius: 1 }}
 					/>
-				</Grid>
-				<Grid item xs={2}>
+				</Grid2>
+				<Grid2 size={2}>
 					<Button
 						fullWidth
 						variant='outlined'
@@ -71,8 +67,8 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 					>
 						Delete
 					</Button>
-				</Grid>
-			</Grid>
+				</Grid2>
+			</Grid2>
 		</Box>
 	);
 };

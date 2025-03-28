@@ -1,8 +1,11 @@
+import { Category, Subcategory } from "./Category";
+
 export default interface Transaction {
   id: string;
   name: string;
   amount: number; // Converted from Decimal to number
-  category: string; // TODO: MAKE THIS DYNAMIC ENUM
+  category: Category; 
+  subcategory: Subcategory;
   date?: Date;
   dateTime?: Date;
   merchant?: string | null;

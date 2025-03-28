@@ -1,57 +1,93 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { TextField, Button, Box, Typography, Grid, Card } from "@mui/material";
+import {
+	TextField,
+	Button,
+	Box,
+	Typography,
+	Grid2,
+	Card,
+	CircularProgress,
+} from "@mui/material";
 import { Category, Subcategory } from "../Models/Category";
 import CategoryCard from "../Components/CategoryManagement/CategoryCard";
 
 const CategoryManagement = () => {
 	const [categories, setCategories] = useState<Category[]>([]);
 	const [newCategory, setNewCategory] = useState<string>("");
+	const [loading, setLoading] = useState<boolean>(true);
 
 	useEffect(() => {
 		const fetchCategories = async () => {
 			try {
 				const response = await axios.get("/api/transaction/categories");
+				console.log(response);
 				setCategories(response.data);
 			} catch (error) {
 				console.error("Error fetching categories", error);
+			} finally {
+				setLoading(false);
 			}
 		};
 		fetchCategories();
 	}, []);
 
 	// Handlers
-	const handleCategoryChange = (category: Category, value: string) => {
-		setCategories((prev) =>
-			prev.map((otherCategory: Category) =>
-				otherCategory.name === category.name
-					? { ...otherCategory, name: value }
-					: otherCategory
-			)
-		);
+	const handleCategoryChange = async (category: Category, value: string) => {
+		try {
+			await axios.put("/api/category", { id: category.name, name: value });
+			setCategories((prev) =>
+				prev.map((otherCategory) =>
+					otherCategory.name === category.name
+						? { ...otherCategory, name: value }
+						: otherCategory
+				)
+			);
+		} catch (error) {
+			console.error("Error updating category", error);
+		}
 	};
-
-	const handleSubcategoryChange = (
+	
+	const handleDeleteCategory = async (category: Category) => {
+		try {
+			await axios.delete(`/api/category/${category.id}`);
+			setCategories((prev) => prev.filter((cat) => cat.id !== category.id));
+		} catch (error) {
+			console.error("Error deleting category", error);
+		}
+	};
+	
+	const handleSubcategoryChange = async (
 		category: Category,
 		subcategory: Subcategory,
 		field: string,
 		value: string
 	) => {
-		setCategories((prev) =>
-			prev.map((otherCategory: Category) =>
-				category.name === otherCategory.name
-					? {
-							...otherCategory,
-							subcategories: otherCategory.subcategories.map(
-								(otherSubcategory: Subcategory) =>
-									subcategory.subcategory === otherSubcategory.subcategory
-										? { ...otherSubcategory, [field]: value }
-										: otherSubcategory
-							),
-					  }
-					: otherCategory
-			)
-		);
+		try {
+			await axios.put("/api/subcategory", {
+				id: subcategory.id,
+				name: field === "name" ? value : subcategory.name,
+				description: field === "description" ? value : subcategory.description,
+				category_id: category.id,
+			});
+			setCategories((prev) =>
+				prev.map((otherCategory) =>
+					category.id === otherCategory.id
+						? {
+								...otherCategory,
+								subcategories: otherCategory.subcategories.map(
+									(otherSubcategory) =>
+										subcategory.id === otherSubcategory.id
+											? { ...otherSubcategory, [field]: value }
+											: otherSubcategory
+								),
+						  }
+						: otherCategory
+				)
+			);
+		} catch (error) {
+			console.error("Error updating subcategory", error);
+		}
 	};
 
 	const handleAddSubcategory = (category: Category) => {
@@ -61,8 +97,8 @@ const CategoryManagement = () => {
 					? {
 							...otherCategory,
 							subcategories: [
-								...category.subcategories,
-								{ subcategory: "", description: "" },
+								...otherCategory.subcategories,
+								{ id: "", name: "", description: "" },
 							],
 					  }
 					: otherCategory
@@ -70,37 +106,54 @@ const CategoryManagement = () => {
 		);
 	};
 
-	const handleDeleteSubcategory = (
+	const handleDeleteSubcategory = async (
 		category: Category,
 		subcategory: Subcategory
 	) => {
-		setCategories((prev) =>
-			prev.map((otherCategory: Category) =>
-				category.name === otherCategory.name
-					? {
-							...otherCategory,
-							subcategories: otherCategory.subcategories.filter(
-								(otherSubcategory: Subcategory) =>
-									subcategory.subcategory !== otherSubcategory.subcategory
-							),
-					  }
-					: otherCategory
-			)
-		);
+		try {
+			await axios.delete(`/api/subcategory/${subcategory.id}`);
+			setCategories((prev) =>
+				prev.map((otherCategory) =>
+					category.id === otherCategory.id
+						? {
+								...otherCategory,
+								subcategories: otherCategory.subcategories.filter(
+									(otherSubcategory) => subcategory.id !== otherSubcategory.id
+								),
+						  }
+						: otherCategory
+				)
+			);
+		} catch (error) {
+			console.error("Error deleting subcategory", error);
+		}
 	};
 
 	const handleAddCategory = () => {
 		if (!newCategory.trim()) return;
 		setCategories((prev) => [
 			...prev,
-			{ name: newCategory, subcategories: [] },
+			{ id: newCategory, name: newCategory, subcategories: [] },
 		]);
 		setNewCategory("");
 	};
 
-	const handleDeleteCategory = (category: Category) => {
-		setCategories((prev) => prev.filter((cat) => cat.name !== category.name));
-	};
+
+	// Show a loading spinner until categories are fetched
+	if (loading) {
+		return (
+			<Box
+				sx={{
+					display: "flex",
+					justifyContent: "center",
+					alignItems: "center",
+					height: "100vh",
+				}}
+			>
+				<CircularProgress />
+			</Box>
+		);
+	}
 
 	return (
 		<Box sx={{ maxWidth: "900px", margin: "auto", padding: "20px" }}>
@@ -110,8 +163,8 @@ const CategoryManagement = () => {
 
 			{/* ADD NEW CATEGORY */}
 			<Card sx={{ padding: "20px", marginBottom: "20px", boxShadow: 2 }}>
-				<Grid container spacing={2} alignItems='center'>
-					<Grid item xs={8}>
+				<Grid2 container spacing={2} alignItems='center'>
+					<Grid2 size={8}>
 						<TextField
 							fullWidth
 							label='New Category Name'
@@ -119,8 +172,8 @@ const CategoryManagement = () => {
 							onChange={(e) => setNewCategory(e.target.value)}
 							sx={{ backgroundColor: "white", borderRadius: 1 }}
 						/>
-					</Grid>
-					<Grid item xs={4}>
+					</Grid2>
+					<Grid2 size={4}>
 						<Button
 							fullWidth
 							variant='contained'
@@ -129,12 +182,13 @@ const CategoryManagement = () => {
 						>
 							Add Category
 						</Button>
-					</Grid>
-				</Grid>
+					</Grid2>
+				</Grid2>
 			</Card>
 
 			{categories.map((category) => (
 				<CategoryCard
+					key={category.name}
 					category={category}
 					handleCategoryChange={handleCategoryChange}
 					handleDeleteCategory={handleDeleteCategory}

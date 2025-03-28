@@ -1,13 +1,16 @@
 import { useState } from "react";
-import Card from "@mui/material/Card";
+import {
+	TextField,
+	Button,
+	Box,
+	Grid2,
+	Card,
+	CardContent,
+	Collapse,
+} from "@mui/material";
+
 import { Category, Subcategory } from "../../Models/Category";
-import CardContent from "@mui/material/CardContent";
-import Grid from "@mui/material/Grid";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
 import SubcategoryRow from "./SubcategoryRow";
-import Box from "@mui/material/Box";
-import Collapse from "@mui/material/Collapse";
 
 interface CategoryCardProps {
 	category: Category;
@@ -39,8 +42,8 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 	return (
 		<Card key={category.name} sx={{ marginBottom: "20px", boxShadow: 3 }}>
 			<CardContent>
-				<Grid container spacing={2} alignItems='center'>
-					<Grid item xs={8}>
+				<Grid2 container spacing={2} alignItems='center'>
+					<Grid2 size={8}>
 						<TextField
 							fullWidth
 							label='Category Name'
@@ -48,8 +51,8 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 							onChange={(e) => handleCategoryChange(category, e.target.value)}
 							sx={{ backgroundColor: "white", borderRadius: 1 }}
 						/>
-					</Grid>
-					<Grid item xs={4}>
+					</Grid2>
+					<Grid2 size={4}>
 						<Button
 							fullWidth
 							variant='outlined'
@@ -58,8 +61,8 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 						>
 							Delete Category
 						</Button>
-					</Grid>
-				</Grid>
+					</Grid2>
+				</Grid2>
 
 				<Box sx={{ marginTop: "10px" }}>
 					<Button

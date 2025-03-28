@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from http import HTTPStatus
 
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Blueprint, Flask, request, jsonify
 import plaid
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
@@ -33,10 +33,14 @@ from plaid.model.consumer_report_permissible_purpose import (
 from plaid.api import plaid_api
 from flask_migrate import Migrate
 
+from models.transaction.txn_category import TxnCategory
+from models.transaction.txn_subcategory import TxnSubcategory
 from models import db
 from models.account.account_subtype import AccountSubtype
 from models.transaction.txn import Txn
-from models.transaction.transaction_categories import TransactionCategories
+from models.transaction.transaction_categories import (
+    seed_transaction_categories,
+)
 from models.transaction.payment_channel import PaymentChannel
 from models.account.account import Account
 from models.item.item import Item
@@ -64,6 +68,7 @@ db.init_app(app)  # 🔥 Fix: Bind the existing db instance to the app
 migrate = Migrate(app, db)  # Bind Flask-Migrate to Flask app and SQLAlchemy
 with app.app_context():
     db.create_all()
+    seed_transaction_categories()
 
 
 def empty_to_none(field):
@@ -216,49 +221,126 @@ def get_transactions(account_id):
     return jsonify(account.get_transactions())
 
 
-# Get transaction categories
+# Transaction Categories
 
 
-# @app.route("/api/transaction/categories", methods=["GET"])
-# def get_categories():
-#     category_dict = defaultdict(dict)
-#     with open(
-#         "assets/plaid_categories.csv", newline="", encoding="utf-8"
-#     ) as category_file:
-#         csv_reader = csv.DictReader(category_file)
-#         for row in csv_reader:
-#             primary = row["PRIMARY"]
-#             detailed = row["DETAILED"]
-#             description = row["DESCRIPTION"]
-#             if not category_dict[primary]:
-#                 category_dict[primary] = []
-
-
-#             sub_category_dict = {"subcategory": detailed, "description": description}
-#             category_dict[primary].append(sub_category_dict)
-#     return jsonify(category_dict)
 @app.route("/api/transaction/categories", methods=["GET"])
 def get_categories():
-    categories_list = []
-    category_dict = defaultdict(list)
+    categories = TxnCategory.query.all()
+    return jsonify([category.to_dict() for category in categories])
 
-    with open(
-        "assets/plaid_categories.csv", newline="", encoding="utf-8"
-    ) as category_file:
-        csv_reader = csv.DictReader(category_file)
-        for row in csv_reader:
-            primary = row["PRIMARY"]
-            detailed = row["DETAILED"]
-            description = row["DESCRIPTION"]
 
-            sub_category_dict = {"subcategory": detailed, "description": description}
-            category_dict[primary].append(sub_category_dict)
+@app.route("/api/category", methods=["POST", "PUT"])
+def create_update_category():
+    data = request.get_json()
+    category_id = data.get("id")
+    name = data.get("name")
 
-    # Convert dict to list of objects
-    for category, subcategories in category_dict.items():
-        categories_list.append({"name": category, "subcategories": subcategories})
+    if not category_id or not name:
+        return jsonify({"error": "ID and name are required"}), 400
 
-    return jsonify(categories_list)
+    category = TxnCategory.query.get(category_id)
+    if category:
+        category.name = name
+    else:
+        category = TxnCategory(id=category_id, name=name)
+        db.session.add(category)
+
+    db.session.commit()
+    return jsonify(category.to_dict()), 200
+
+
+@app.route("/api/subcategory", methods=["POST", "PUT"])
+def create_update_subcategory():
+    data = request.get_json()
+    subcategory_id = data.get("id")
+    name = data.get("name")
+    description = data.get("description", "")
+    category_id = data.get("category_id")
+
+    if not subcategory_id or not name or not category_id:
+        return jsonify({"error": "ID, name, and category_id are required"}), 400
+
+    category = TxnCategory.query.get(category_id)
+    if not category:
+        return jsonify({"error": "Category not found"}), 404
+
+    subcategory = TxnSubcategory.query.get(subcategory_id)
+    if subcategory:
+        subcategory.name = name
+        subcategory.description = description
+        subcategory.category = category
+    else:
+        subcategory = TxnSubcategory(
+            id=subcategory_id, name=name, description=description, category=category
+        )
+        db.session.add(subcategory)
+
+    db.session.commit()
+    return jsonify(subcategory.to_dict()), 200
+
+
+@app.route("/api/category/<string:category_id>", methods=["DELETE"])
+def delete_category(category_id):
+    category = TxnCategory.query.get(category_id)
+    if not category:
+        return (
+            jsonify(
+                create_formatted_error(HTTPStatus.NOT_FOUND.value, "Category not found")
+            ),
+            HTTPStatus.NOT_FOUND.value,
+        )
+
+    # Check if there are any transactions associated with the category
+    transactions = Txn.query.filter_by(category_id=category_id).all()
+    if transactions:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.BAD_REQUEST.value,
+                    "Cannot delete category with associated transactions.",
+                )
+            ),
+            HTTPStatus.BAD_REQUEST.value,
+        )
+
+    db.session.delete(category)
+    db.session.commit()
+    return (
+        jsonify({"message": "Category and its subcategories deleted successfully"}),
+        HTTPStatus.OK.value,
+    )
+
+
+@app.route("/api/subcategory/<string:subcategory_id>", methods=["DELETE"])
+def delete_subcategory(subcategory_id):
+    subcategory = TxnSubcategory.query.get(subcategory_id)
+    if not subcategory:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.NOT_FOUND.value, "Subcategory not found"
+                )
+            ),
+            HTTPStatus.NOT_FOUND.value,
+        )
+
+    # Check if there are any transactions associated with the subcategory
+    transactions = Txn.query.filter_by(subcategory_id=subcategory_id).all()
+    if transactions:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.BAD_REQUEST.value,
+                    "Cannot delete subcategory with associated transactions.",
+                )
+            ),
+            HTTPStatus.BAD_REQUEST.value,
+        )
+
+    db.session.delete(subcategory)
+    db.session.commit()
+    return jsonify({"message": "Subcategory deleted successfully"}), HTTPStatus.OK.value
 
 
 # Create item
@@ -447,12 +529,35 @@ def handle_added_transactions(transactions: list):
         if not account:
             continue
 
-        # Get account type
-        try:
-            txn_category_str = str(transaction["personal_finance_category"]["detailed"])
-            txn_category = TransactionCategories(txn_category_str)
-        except ValueError:
-            txn_category = TransactionCategories.OTHER
+        # Extract category and subcategory from transaction
+        primary_category_name = transaction["personal_finance_category"].get(
+            "primary", "OTHER"
+        )
+        detailed_category_name = transaction["personal_finance_category"].get(
+            "detailed", "OTHER"
+        )
+        # Lookup category or create a new one if it doesn't exist
+        category = TxnCategory.query.filter_by(name=primary_category_name).one_or_none()
+        if not category:
+            category = TxnCategory(
+                id=primary_category_name.lower(), name=primary_category_name
+            )
+            db.session.add(category)
+            db.session.commit()
+
+        # Lookup subcategory or create a new one if it doesn't exist
+        subcategory = TxnSubcategory.query.filter_by(
+            name=detailed_category_name, category=category
+        ).one_or_none()
+        if not subcategory:
+            subcategory = TxnSubcategory(
+                id=detailed_category_name.lower(),
+                name=detailed_category_name,
+                description=f"Subcategory of {primary_category_name}",
+                category=category,
+            )
+            db.session.add(subcategory)
+            db.session.commit()
 
         try:
             payment_channel_str = str(transaction["payment_channel"])
@@ -464,7 +569,8 @@ def handle_added_transactions(transactions: list):
             id=transaction.get("transaction_id"),
             name=transaction.get("name"),
             amount=Decimal(transaction.get("amount") or 0.0),
-            category=txn_category,
+            category=category,
+            subcategory=subcategory,
             date=transaction.get("date"),
             date_time=transaction.get("datetime"),
             merchant=transaction.get("merchant_name"),

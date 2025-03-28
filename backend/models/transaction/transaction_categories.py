@@ -1,6 +1,33 @@
-from utils.file_utils import create_enum_from_csv
+import csv
+from models import db
 
-# Transaction Categories Enum
-file_path = 'assets/plaid_categories.csv'  # Replace with your actual CSV file path
-column_name = 'DETAILED'  # Replace with the actual column name
-TransactionCategories = create_enum_from_csv(file_path, column_name, "TransactionCategories")
+from constants.file_constants import CATEGORIES_CSV
+from models.transaction.txn_category import TxnCategory
+from models.transaction.txn_subcategory import TxnSubcategory
+
+def seed_transaction_categories():
+    with open(CATEGORIES_CSV, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            primary = row["PRIMARY"].strip()
+            detailed = row["DETAILED"].strip()
+            description = row["DESCRIPTION"].strip()
+
+            # Check if the category exists by primary (used as id and name)
+            category = TxnCategory.query.get(primary)
+            if not category:
+                category = TxnCategory(id=primary, name=primary)
+                db.session.add(category)
+                db.session.commit()  # Commit so that category is available for relationship
+
+            # Check if the subcategory exists by detailed (used as id and name)
+            subcategory = TxnSubcategory.query.get(detailed)
+            if not subcategory:
+                subcategory = TxnSubcategory(
+                    id=detailed,
+                    name=detailed,
+                    description=description,
+                    category=category,
+                )
+                db.session.add(subcategory)
+        db.session.commit()
