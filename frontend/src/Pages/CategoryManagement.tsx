@@ -8,7 +8,10 @@ import {
 	Grid2,
 	Card,
 	CircularProgress,
+	Snackbar,
+	Alert,
 } from "@mui/material";
+import { Error } from "../Models/Error";
 import { Category, Subcategory } from "../Models/Category";
 import CategoryCard from "../Components/CategoryManagement/CategoryCard";
 
@@ -16,6 +19,11 @@ const CategoryManagement = () => {
 	const [categories, setCategories] = useState<Category[]>([]);
 	const [newCategory, setNewCategory] = useState<string>("");
 	const [loading, setLoading] = useState<boolean>(true);
+	const [alertMessage, setAlertMessage] = useState<string | null>(null);
+	const [alertSeverity, setAlertSeverity] = useState<"success" | "error">(
+		"success"
+	);
+	const [openAlert, setOpenAlert] = useState<boolean>(false);
 
 	useEffect(() => {
 		const fetchCategories = async () => {
@@ -47,16 +55,36 @@ const CategoryManagement = () => {
 			console.error("Error updating category", error);
 		}
 	};
-	
+
 	const handleDeleteCategory = async (category: Category) => {
 		try {
 			await axios.delete(`/api/category/${category.id}`);
 			setCategories((prev) => prev.filter((cat) => cat.id !== category.id));
+			setAlertMessage(`Category "${category.name}" deleted successfully!`);
+			setAlertSeverity("success");
 		} catch (error) {
-			console.error("Error deleting category", error);
+			console.log(error);
+			if (axios.isAxiosError(error)) {
+				const errResponse = error?.response?.data;
+				const apiError: Error = {
+					status_code: errResponse.status_code,
+					display_message: errResponse.display_message,
+					error_code: errResponse.error_code,
+					error_type: errResponse.error_type,
+				};
+				triggerAlert(
+					`Error deleting category: ${apiError.display_message}`,
+					"error"
+				);
+			} else {
+				triggerAlert(
+					"An unexpected error occurred while deleting the category.",
+					"error"
+				);
+			}
 		}
 	};
-	
+
 	const handleSubcategoryChange = async (
 		category: Category,
 		subcategory: Subcategory,
@@ -138,6 +166,19 @@ const CategoryManagement = () => {
 		setNewCategory("");
 	};
 
+	const triggerAlert = (message: string, severity: "success" | "error") => {
+		setAlertMessage(message);
+		setAlertSeverity(severity);
+		setOpenAlert(true);
+
+		setTimeout(() => {
+			setOpenAlert(false);
+		}, 5000); // matches the autoHideDuration of Snackbar
+	};
+
+	const handleCloseAlert = () => {
+		setOpenAlert(false);
+	};
 
 	// Show a loading spinner until categories are fetched
 	if (loading) {
@@ -197,6 +238,21 @@ const CategoryManagement = () => {
 					handleDeleteSubcategory={handleDeleteSubcategory}
 				/>
 			))}
+
+			<Snackbar
+				open={openAlert}
+				autoHideDuration={5000}
+				onClose={handleCloseAlert}
+				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+			>
+				<Alert
+					onClose={handleCloseAlert}
+					severity={alertSeverity}
+					sx={{ width: "100%" }}
+				>
+					{alertMessage}
+				</Alert>
+			</Snackbar>
 		</Box>
 	);
 };

@@ -612,24 +612,20 @@ def pretty_print_response(response):
 
 def create_formatted_error(status_code: int, error_message: str):
     return {
-        "error": {
-            "status_code": status_code,
-            "display_message": error_message,
-            "error_code": status_code,
-            "error_type": "",
-        }
+        "status_code": status_code,
+        "display_message": error_message,
+        "error_code": status_code,
+        "error_type": "",
     }
 
 
 def format_error(e):
     response = json.loads(e.body)
     return {
-        "error": {
-            "status_code": e.status,
-            "display_message": response["error_message"],
-            "error_code": response["error_code"],
-            "error_type": response["error_type"],
-        }
+        "status_code": e.status,
+        "display_message": response["error_message"],
+        "error_code": response["error_code"],
+        "error_type": response["error_type"],
     }
 
 
