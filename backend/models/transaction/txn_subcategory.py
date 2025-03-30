@@ -30,4 +30,5 @@ class TxnSubcategory(db.Model):
             "id": self.id,
             "name": self.name,
             "description": self.description,
+            "category_id": self.category.id
         }

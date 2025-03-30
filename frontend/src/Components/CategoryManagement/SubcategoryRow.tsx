@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Box, Button, Divider, Grid2, TextField } from "@mui/material";
 import { Category, Subcategory } from "../../Models/Category";
 
@@ -7,7 +8,7 @@ interface SubcategoryRowProps {
 	handleSubcategoryChange: (
 		category: Category,
 		subcategory: Subcategory,
-		field: string,
+		field: keyof Subcategory, // Enforces valid fields
 		value: string
 	) => void;
 	handleDeleteSubcategory: (
@@ -22,6 +23,12 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 	handleSubcategoryChange,
 	handleDeleteSubcategory,
 }) => {
+	const [subcategoryNameValue, setSubcategoryNameValue] = useState(
+		subcategory.name.replace(/_/g, " ")
+	);
+	const [subcategoryDescriptionValue, setSubcategoryDescriptionValue] =
+		useState(subcategory.description);
+
 	return (
 		<Box key={subcategory.name} sx={{ marginTop: "10px" }}>
 			<Divider sx={{ marginBottom: "10px" }} />
@@ -30,12 +37,13 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 					<TextField
 						fullWidth
 						label='Subcategory Name'
-						value={subcategory.name.replace(/_/g, " ")}
-						onChange={(e) =>
+						value={subcategoryNameValue}
+						onChange={(e) => setSubcategoryNameValue(e.target.value)}
+						onBlur={(e) =>
 							handleSubcategoryChange(
 								category,
 								subcategory,
-								"subcategory",
+								"name",
 								e.target.value
 							)
 						}
@@ -46,8 +54,9 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 					<TextField
 						fullWidth
 						label='Description'
-						value={subcategory.description}
-						onChange={(e) =>
+						value={subcategoryDescriptionValue}
+						onChange={(e) => setSubcategoryDescriptionValue(e.target.value)}
+						onBlur={(e) =>
 							handleSubcategoryChange(
 								category,
 								subcategory,

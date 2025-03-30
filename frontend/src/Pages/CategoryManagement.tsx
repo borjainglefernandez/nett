@@ -18,12 +18,24 @@ import CategoryCard from "../Components/CategoryManagement/CategoryCard";
 const CategoryManagement = () => {
 	const [categories, setCategories] = useState<Category[]>([]);
 	const [newCategory, setNewCategory] = useState<string>("");
+	const [modifiedCategories, setModifiedCategories] = useState<Set<string>>(
+		new Set()
+	);
+	const [modifiedSubcategories, setModifiedSubcategories] = useState<
+		Set<string>
+	>(new Set());
 	const [loading, setLoading] = useState<boolean>(true);
 	const [alertMessage, setAlertMessage] = useState<string | null>(null);
 	const [alertSeverity, setAlertSeverity] = useState<"success" | "error">(
 		"success"
 	);
 	const [openAlert, setOpenAlert] = useState<boolean>(false);
+	const [openDialog, setOpenDialog] = useState<boolean>(false);
+	const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+		null
+	);
+	const [subcategoryToDelete, setSubcategoryToDelete] =
+		useState<Subcategory | null>(null);
 
 	useEffect(() => {
 		const fetchCategories = async () => {
@@ -40,10 +52,19 @@ const CategoryManagement = () => {
 		fetchCategories();
 	}, []);
 
-	// Handlers
+	// Category Handlers
+	const handleAddCategory = () => {
+		if (!newCategory.trim()) return;
+		setCategories((prev) => [
+			...prev,
+			{ id: newCategory, name: newCategory, subcategories: [] },
+		]);
+		setNewCategory("");
+	};
+
 	const handleCategoryChange = async (category: Category, value: string) => {
 		try {
-			await axios.put("/api/category", { id: category.name, name: value });
+			console.log("Here in handle category");
 			setCategories((prev) =>
 				prev.map((otherCategory) =>
 					otherCategory.name === category.name
@@ -51,53 +72,61 @@ const CategoryManagement = () => {
 						: otherCategory
 				)
 			);
+			setModifiedCategories((prev) => new Set(prev).add(category.id));
 		} catch (error) {
 			console.error("Error updating category", error);
 		}
 	};
 
-	const handleDeleteCategory = async (category: Category) => {
-		try {
-			await axios.delete(`/api/category/${category.id}`);
-			setCategories((prev) => prev.filter((cat) => cat.id !== category.id));
-			setAlertMessage(`Category "${category.name}" deleted successfully!`);
-			setAlertSeverity("success");
-		} catch (error) {
-			console.log(error);
-			if (axios.isAxiosError(error)) {
-				const errResponse = error?.response?.data;
-				const apiError: Error = {
-					status_code: errResponse.status_code,
-					display_message: errResponse.display_message,
-					error_code: errResponse.error_code,
-					error_type: errResponse.error_type,
-				};
-				triggerAlert(
-					`Error deleting category: ${apiError.display_message}`,
-					"error"
-				);
-			} else {
-				triggerAlert(
-					"An unexpected error occurred while deleting the category.",
-					"error"
-				);
-			}
-		}
+	const handleDeleteCategoryDialogOpen = (category: Category) => {
+		setCategoryToDelete(category);
+		setOpenDialog(true);
 	};
 
+	const handleDeleteCategory = async (category: Category) => {
+		if (categoryToDelete) {
+			try {
+				await axios.delete(`/api/category/${categoryToDelete.id}`);
+				setCategories((prev) =>
+					prev.filter((cat) => cat.id !== categoryToDelete.id)
+				);
+				setAlertMessage(
+					`Category "${categoryToDelete.name}" deleted successfully!`
+				);
+				setAlertSeverity("success");
+			} catch (error) {
+				console.log(error);
+				if (axios.isAxiosError(error)) {
+					const errResponse = error?.response?.data;
+					const apiError: Error = {
+						status_code: errResponse.status_code,
+						display_message: errResponse.display_message,
+						error_code: errResponse.error_code,
+						error_type: errResponse.error_type,
+					};
+					triggerAlert(
+						`Error deleting category: ${apiError.display_message}`,
+						"error"
+					);
+				} else {
+					triggerAlert(
+						"An unexpected error occurred while deleting the category.",
+						"error"
+					);
+				}
+			}
+		}
+		setOpenDialog(false);
+	};
+
+	// Subcategory Handlers
 	const handleSubcategoryChange = async (
 		category: Category,
 		subcategory: Subcategory,
-		field: string,
+		field: keyof Subcategory, // Enforces valid fields
 		value: string
 	) => {
 		try {
-			await axios.put("/api/subcategory", {
-				id: subcategory.id,
-				name: field === "name" ? value : subcategory.name,
-				description: field === "description" ? value : subcategory.description,
-				category_id: category.id,
-			});
 			setCategories((prev) =>
 				prev.map((otherCategory) =>
 					category.id === otherCategory.id
@@ -113,6 +142,7 @@ const CategoryManagement = () => {
 						: otherCategory
 				)
 			);
+			setModifiedSubcategories((prev) => new Set(prev).add(subcategory.id));
 		} catch (error) {
 			console.error("Error updating subcategory", error);
 		}
@@ -126,7 +156,12 @@ const CategoryManagement = () => {
 							...otherCategory,
 							subcategories: [
 								...otherCategory.subcategories,
-								{ id: "", name: "", description: "" },
+								{
+									id: "",
+									name: "",
+									description: "",
+									category_id: otherCategory.id,
+								},
 							],
 					  }
 					: otherCategory
@@ -134,36 +169,94 @@ const CategoryManagement = () => {
 		);
 	};
 
-	const handleDeleteSubcategory = async (
-		category: Category,
-		subcategory: Subcategory
-	) => {
-		try {
-			await axios.delete(`/api/subcategory/${subcategory.id}`);
-			setCategories((prev) =>
-				prev.map((otherCategory) =>
-					category.id === otherCategory.id
-						? {
-								...otherCategory,
-								subcategories: otherCategory.subcategories.filter(
-									(otherSubcategory) => subcategory.id !== otherSubcategory.id
-								),
-						  }
-						: otherCategory
-				)
-			);
-		} catch (error) {
-			console.error("Error deleting subcategory", error);
-		}
+	const handleDeleteSubcategoryDialogOpen = (subcategory: Subcategory) => {
+		setSubcategoryToDelete(subcategory);
+		setOpenDialog(true);
 	};
 
-	const handleAddCategory = () => {
-		if (!newCategory.trim()) return;
-		setCategories((prev) => [
-			...prev,
-			{ id: newCategory, name: newCategory, subcategories: [] },
-		]);
-		setNewCategory("");
+	const handleDeleteSubcategory = async () => {
+		if (subcategoryToDelete) {
+			try {
+				await axios.delete(`/api/subcategory/${subcategoryToDelete.id}`);
+				setCategories((prev) =>
+					prev.map((otherCategory) =>
+						subcategoryToDelete.category_id === otherCategory.id
+							? {
+									...otherCategory,
+									subcategories: otherCategory.subcategories.filter(
+										(otherSubcategory) =>
+											subcategoryToDelete.id !== otherSubcategory.id
+									),
+							  }
+							: otherCategory
+					)
+				);
+			} catch (error) {
+				console.error("Error deleting subcategory", error);
+			}
+		}
+		setOpenDialog(false);
+	};
+
+	const handleOnSaveChanges = async () => {
+		try {
+			const categoryUpdates = categories.filter((category) =>
+				modifiedCategories.has(category.id)
+			);
+
+			const subcategoryUpdates: Subcategory[] = [];
+			categories.forEach((category) => {
+				category.subcategories.forEach((subcategory) => {
+					if (modifiedSubcategories.has(subcategory.id)) {
+						subcategoryUpdates.push(subcategory);
+					}
+				});
+			});
+
+			if (categoryUpdates.length === 0 && subcategoryUpdates.length === 0) {
+				triggerAlert("No changes to save!", "success");
+				return;
+			}
+
+			// Make API requests for each modified category
+			await Promise.all(
+				categoryUpdates.map((category: Category) =>
+					axios.put("/api/category", category)
+				)
+			);
+
+			await Promise.all(
+				subcategoryUpdates.map((subcategory: Subcategory) =>
+					axios.put("/api/subcategory", subcategory)
+				)
+			);
+
+			triggerAlert("Changes saved successfully!", "success");
+
+			// Clear modified state
+			setModifiedCategories(new Set());
+			setModifiedSubcategories(new Set());
+		} catch (error) {
+			console.log(error);
+			if (axios.isAxiosError(error)) {
+				const errResponse = error?.response?.data;
+				const apiError: Error = {
+					status_code: errResponse.status_code,
+					display_message: errResponse.display_message,
+					error_code: errResponse.error_code,
+					error_type: errResponse.error_type,
+				};
+				triggerAlert(
+					`Error saving changes: ${apiError.display_message}`,
+					"error"
+				);
+			} else {
+				triggerAlert(
+					"An unexpected error occurred while deleting the category.",
+					"error"
+				);
+			}
+		}
 	};
 
 	const triggerAlert = (message: string, severity: "success" | "error") => {
@@ -198,9 +291,25 @@ const CategoryManagement = () => {
 
 	return (
 		<Box sx={{ maxWidth: "900px", margin: "auto", padding: "20px" }}>
-			<Typography variant='h4' gutterBottom sx={{ fontWeight: "bold" }}>
-				Category Management
-			</Typography>
+			<Box
+				sx={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "center",
+					marginBottom: "20px",
+				}}
+			>
+				<Typography variant='h4' sx={{ fontWeight: "bold" }}>
+					Category Management
+				</Typography>
+				<Button
+					variant='contained'
+					color='success'
+					onClick={handleOnSaveChanges}
+				>
+					Save Changes
+				</Button>
+			</Box>
 
 			{/* ADD NEW CATEGORY */}
 			<Card sx={{ padding: "20px", marginBottom: "20px", boxShadow: 2 }}>

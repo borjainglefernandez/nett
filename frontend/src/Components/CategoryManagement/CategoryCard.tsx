@@ -20,7 +20,7 @@ interface CategoryCardProps {
 	handleSubcategoryChange: (
 		category: Category,
 		subcategory: Subcategory,
-		field: string,
+		field: keyof Subcategory, // Enforces valid fields
 		value: string
 	) => void;
 	handleDeleteSubcategory: (
@@ -38,6 +38,9 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 	handleDeleteSubcategory,
 }) => {
 	const [open, setOpen] = useState(false);
+	const [categoryNameValue, setCategoryNameValue] = useState(
+		category.name.replace(/_/g, " ")
+	);
 
 	return (
 		<Card key={category.name} sx={{ marginBottom: "20px", boxShadow: 3 }}>
@@ -47,8 +50,9 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 						<TextField
 							fullWidth
 							label='Category Name'
-							value={category.name.replace(/_/g, " ")}
-							onChange={(e) => handleCategoryChange(category, e.target.value)}
+							value={categoryNameValue}
+							onChange={(e) => setCategoryNameValue(e.target.value)} // Allow typing
+							onBlur={(e) => handleCategoryChange(category, e.target.value)}
 							sx={{ backgroundColor: "white", borderRadius: 1 }}
 						/>
 					</Grid2>

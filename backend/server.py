@@ -48,6 +48,7 @@ from models.account.account_type import AccountType
 from models.institution.institution import Institution
 from sqlalchemy.exc import IntegrityError
 
+from werkzeug.exceptions import BadRequest, HTTPException
 
 load_dotenv()
 
@@ -232,22 +233,26 @@ def get_categories():
 
 @app.route("/api/category", methods=["POST", "PUT"])
 def create_update_category():
-    data = request.get_json()
-    category_id = data.get("id")
-    name = data.get("name")
+    try:
+        data = request.get_json()
+        category_id = data.get("id")
+        name = data.get("name")
 
-    if not category_id or not name:
-        return jsonify({"error": "ID and name are required"}), 400
+        if not category_id or not name:
+            return jsonify({"error": "ID and name are required"}), 400
 
-    category = TxnCategory.query.get(category_id)
-    if category:
-        category.name = name
-    else:
-        category = TxnCategory(id=category_id, name=name)
-        db.session.add(category)
+        category = TxnCategory.query.get(category_id)
+        if category:
+            category.name = name
+        else:
+            category = TxnCategory(id=category_id, name=name)
+            db.session.add(category)
 
-    db.session.commit()
-    return jsonify(category.to_dict()), 200
+        db.session.commit()
+        return jsonify(category.to_dict()), 200
+    except Exception as e:
+        print(e)
+        return jsonify(create_formatted_error(e)), 400
 
 
 @app.route("/api/subcategory", methods=["POST", "PUT"])
@@ -278,7 +283,6 @@ def create_update_subcategory():
 
     db.session.commit()
     return jsonify(subcategory.to_dict()), 200
-
 
 @app.route("/api/category/<string:category_id>", methods=["DELETE"])
 def delete_category(category_id):
