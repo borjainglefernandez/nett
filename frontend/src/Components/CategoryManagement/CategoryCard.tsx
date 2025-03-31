@@ -24,7 +24,6 @@ interface CategoryCardProps {
 		value: string
 	) => void;
 	handleDeleteSubcategory: (
-		category: Category,
 		subcategory: Subcategory
 	) => void;
 }
@@ -80,9 +79,9 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 				</Box>
 
 				<Collapse in={open}>
-					{category.subcategories.map((subcategory, index) => (
+					{category.subcategories.map((subcategory) => (
 						<SubcategoryRow
-							key={index}
+							key={subcategory.id}
 							category={category}
 							subcategory={subcategory}
 							handleSubcategoryChange={handleSubcategoryChange}

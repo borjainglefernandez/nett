@@ -10,6 +10,10 @@ import {
 	CircularProgress,
 	Snackbar,
 	Alert,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
 } from "@mui/material";
 import { Error } from "../Models/Error";
 import { Category, Subcategory } from "../Models/Category";
@@ -83,7 +87,7 @@ const CategoryManagement = () => {
 		setOpenDialog(true);
 	};
 
-	const handleDeleteCategory = async (category: Category) => {
+	const handleDeleteCategory = async () => {
 		if (categoryToDelete) {
 			try {
 				await axios.delete(`/api/category/${categoryToDelete.id}`);
@@ -191,8 +195,30 @@ const CategoryManagement = () => {
 							: otherCategory
 					)
 				);
+				triggerAlert(
+					`Subcategory "${subcategoryToDelete.name}" deleted successfully!`,
+					"success"
+				);
 			} catch (error) {
-				console.error("Error deleting subcategory", error);
+				console.log(error);
+				if (axios.isAxiosError(error)) {
+					const errResponse = error?.response?.data;
+					const apiError: Error = {
+						status_code: errResponse.status_code,
+						display_message: errResponse.display_message,
+						error_code: errResponse.error_code,
+						error_type: errResponse.error_type,
+					};
+					triggerAlert(
+						`Error deleting subcategory: ${apiError.display_message}`,
+						"error"
+					);
+				} else {
+					triggerAlert(
+						"An unexpected error occurred while deleting the category.",
+						"error"
+					);
+				}
 			}
 		}
 		setOpenDialog(false);
@@ -224,7 +250,8 @@ const CategoryManagement = () => {
 					axios.put("/api/category", category)
 				)
 			);
-
+			
+			console.log(subcategoryUpdates);
 			await Promise.all(
 				subcategoryUpdates.map((subcategory: Subcategory) =>
 					axios.put("/api/subcategory", subcategory)
@@ -260,6 +287,7 @@ const CategoryManagement = () => {
 	};
 
 	const triggerAlert = (message: string, severity: "success" | "error") => {
+		console.log("Triggering alert");
 		setAlertMessage(message);
 		setAlertSeverity(severity);
 		setOpenAlert(true);
@@ -270,7 +298,10 @@ const CategoryManagement = () => {
 	};
 
 	const handleCloseAlert = () => {
-		setOpenAlert(false);
+		setOpenDialog(false);
+		setCategoryToDelete(null);
+		setSubcategoryToDelete(null);
+		console.log("Here");
 	};
 
 	// Show a loading spinner until categories are fetched
@@ -338,27 +369,51 @@ const CategoryManagement = () => {
 
 			{categories.map((category) => (
 				<CategoryCard
-					key={category.name}
+					key={category.id}
 					category={category}
 					handleCategoryChange={handleCategoryChange}
-					handleDeleteCategory={handleDeleteCategory}
+					handleDeleteCategory={handleDeleteCategoryDialogOpen}
 					handleAddSubcategory={handleAddSubcategory}
 					handleSubcategoryChange={handleSubcategoryChange}
-					handleDeleteSubcategory={handleDeleteSubcategory}
+					handleDeleteSubcategory={handleDeleteSubcategoryDialogOpen}
 				/>
 			))}
+
+			{/* Confirmation Dialog */}
+			<Dialog open={openDialog}>
+				<DialogTitle>
+					{categoryToDelete
+						? `Delete Category "${categoryToDelete.name}"`
+						: subcategoryToDelete
+						? `Delete Subcategory "${subcategoryToDelete.name}"`
+						: ""}
+				</DialogTitle>
+				<DialogContent>
+					Are you sure you want to delete this item?
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => handleCloseAlert()} color='primary'>
+						Cancel
+					</Button>
+					<Button
+						onClick={() =>
+							categoryToDelete
+								? handleDeleteCategory()
+								: handleDeleteSubcategory()
+						}
+						color='error'
+					>
+						Delete
+					</Button>
+				</DialogActions>
+			</Dialog>
 
 			<Snackbar
 				open={openAlert}
 				autoHideDuration={5000}
-				onClose={handleCloseAlert}
 				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
 			>
-				<Alert
-					onClose={handleCloseAlert}
-					severity={alertSeverity}
-					sx={{ width: "100%" }}
-				>
+				<Alert severity={alertSeverity} sx={{ width: "100%" }}>
 					{alertMessage}
 				</Alert>
 			</Snackbar>

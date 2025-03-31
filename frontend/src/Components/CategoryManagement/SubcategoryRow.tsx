@@ -11,10 +11,7 @@ interface SubcategoryRowProps {
 		field: keyof Subcategory, // Enforces valid fields
 		value: string
 	) => void;
-	handleDeleteSubcategory: (
-		category: Category,
-		subcategory: Subcategory
-	) => void;
+	handleDeleteSubcategory: (subcategory: Subcategory) => void;
 }
 
 const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
@@ -72,7 +69,7 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 						fullWidth
 						variant='outlined'
 						color='error'
-						onClick={() => handleDeleteSubcategory(category, subcategory)}
+						onClick={() => handleDeleteSubcategory(subcategory)}
 					>
 						Delete
 					</Button>
