@@ -45,7 +45,6 @@ const CategoryManagement = () => {
 		const fetchCategories = async () => {
 			try {
 				const response = await axios.get("/api/transaction/categories");
-				console.log(response);
 				setCategories(response.data);
 			} catch (error) {
 				console.error("Error fetching categories", error);
@@ -57,18 +56,46 @@ const CategoryManagement = () => {
 	}, []);
 
 	// Category Handlers
-	const handleAddCategory = () => {
+	const handleAddCategory = async () => {
 		if (!newCategory.trim()) return;
-		setCategories((prev) => [
-			...prev,
-			{ id: newCategory, name: newCategory, subcategories: [] },
-		]);
-		setNewCategory("");
+		let newCategoryObj: Category = {
+			id: newCategory,
+			name: newCategory,
+			subcategories: [],
+		};
+		setCategories((prev) => [...prev, newCategoryObj]);
+		try {
+			await axios.post("/api/category", newCategoryObj);
+			setNewCategory("");
+			triggerAlert(
+				`Category "${newCategory}" created successfully!`,
+				"success"
+			);
+		} catch (error) {
+			console.log(error);
+			if (axios.isAxiosError(error)) {
+				const errResponse = error?.response?.data;
+				const apiError: Error = {
+					status_code: errResponse.status_code,
+					display_message: errResponse.display_message,
+					error_code: errResponse.error_code,
+					error_type: errResponse.error_type,
+				};
+				triggerAlert(
+					`Error creating category: ${apiError.display_message}`,
+					"error"
+				);
+			} else {
+				triggerAlert(
+					"An unexpected error occurred while creating the category.",
+					"error"
+				);
+			}
+		}
 	};
 
 	const handleCategoryChange = async (category: Category, value: string) => {
 		try {
-			console.log("Here in handle category");
 			setCategories((prev) =>
 				prev.map((otherCategory) =>
 					otherCategory.name === category.name
@@ -91,13 +118,13 @@ const CategoryManagement = () => {
 		if (categoryToDelete) {
 			try {
 				await axios.delete(`/api/category/${categoryToDelete.id}`);
+				triggerAlert(
+					`Category "${categoryToDelete.name}" deleted successfully!`,
+					"success"
+				);
 				setCategories((prev) =>
 					prev.filter((cat) => cat.id !== categoryToDelete.id)
 				);
-				setAlertMessage(
-					`Category "${categoryToDelete.name}" deleted successfully!`
-				);
-				setAlertSeverity("success");
 			} catch (error) {
 				console.log(error);
 				if (axios.isAxiosError(error)) {
@@ -250,8 +277,7 @@ const CategoryManagement = () => {
 					axios.put("/api/category", category)
 				)
 			);
-			
-			console.log(subcategoryUpdates);
+
 			await Promise.all(
 				subcategoryUpdates.map((subcategory: Subcategory) =>
 					axios.put("/api/subcategory", subcategory)

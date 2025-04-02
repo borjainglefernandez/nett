@@ -262,9 +262,6 @@ def create_update_subcategory():
     subcategory_id = data.get("id") or name
     description = data.get("description", "")
     category_id = data.get("category_id")
-    print(subcategory_id)
-    print(name)
-    print(category_id)
 
     if not subcategory_id or not name or not category_id:
         return jsonify({"error": "ID, name, and category_id are required"}), 400
