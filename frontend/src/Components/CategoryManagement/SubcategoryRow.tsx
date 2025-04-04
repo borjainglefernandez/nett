@@ -8,7 +8,7 @@ interface SubcategoryRowProps {
 	handleSubcategoryChange: (
 		category: Category,
 		subcategory: Subcategory,
-		field: keyof Subcategory, // Enforces valid fields
+		field: keyof Subcategory,
 		value: string
 	) => void;
 	handleDeleteSubcategory: (subcategory: Subcategory) => void;
@@ -26,6 +26,39 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 	const [subcategoryDescriptionValue, setSubcategoryDescriptionValue] =
 		useState(subcategory.description);
 
+	const [nameError, setNameError] = useState(!subcategory.name.trim());
+	const [descriptionError, setDescriptionError] = useState(
+		!subcategory.description.trim()
+	);
+
+	const handleNameBlur = () => {
+		if (!subcategoryNameValue.trim()) {
+			setNameError(true);
+		} else {
+			setNameError(false);
+			handleSubcategoryChange(
+				category,
+				subcategory,
+				"name",
+				subcategoryNameValue
+			);
+		}
+	};
+
+	const handleDescriptionBlur = () => {
+		if (!subcategoryDescriptionValue.trim()) {
+			setDescriptionError(true);
+		} else {
+			setDescriptionError(false);
+			handleSubcategoryChange(
+				category,
+				subcategory,
+				"description",
+				subcategoryDescriptionValue
+			);
+		}
+	};
+
 	return (
 		<Box key={subcategory.name} sx={{ marginTop: "10px" }}>
 			<Divider sx={{ marginBottom: "10px" }} />
@@ -33,34 +66,26 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 				<Grid2 size={5}>
 					<TextField
 						fullWidth
+						required
+						error={nameError}
+						helperText={nameError ? "Name is required" : ""}
 						label='Subcategory Name'
 						value={subcategoryNameValue}
 						onChange={(e) => setSubcategoryNameValue(e.target.value)}
-						onBlur={(e) =>
-							handleSubcategoryChange(
-								category,
-								subcategory,
-								"name",
-								e.target.value
-							)
-						}
+						onBlur={handleNameBlur}
 						sx={{ backgroundColor: "white", borderRadius: 1 }}
 					/>
 				</Grid2>
 				<Grid2 size={5}>
 					<TextField
 						fullWidth
+						required
+						error={descriptionError}
+						helperText={descriptionError ? "Description is required" : ""}
 						label='Description'
 						value={subcategoryDescriptionValue}
 						onChange={(e) => setSubcategoryDescriptionValue(e.target.value)}
-						onBlur={(e) =>
-							handleSubcategoryChange(
-								category,
-								subcategory,
-								"description",
-								e.target.value
-							)
-						}
+						onBlur={handleDescriptionBlur}
 						sx={{ backgroundColor: "white", borderRadius: 1 }}
 					/>
 				</Grid2>

@@ -206,48 +206,63 @@ const CategoryManagement = () => {
 	};
 
 	const handleDeleteSubcategory = async () => {
-		if (subcategoryToDelete) {
-			try {
-				await axios.delete(`/api/subcategory/${subcategoryToDelete.id}`);
-				setCategories((prev) =>
-					prev.map((otherCategory) =>
-						subcategoryToDelete.category_id === otherCategory.id
-							? {
-									...otherCategory,
-									subcategories: otherCategory.subcategories.filter(
-										(otherSubcategory) =>
-											subcategoryToDelete.id !== otherSubcategory.id
-									),
-							  }
-							: otherCategory
-					)
-				);
-				triggerAlert(
-					`Subcategory "${subcategoryToDelete.name}" deleted successfully!`,
-					"success"
-				);
-			} catch (error) {
-				console.log(error);
-				if (axios.isAxiosError(error)) {
-					const errResponse = error?.response?.data;
-					const apiError: Error = {
-						status_code: errResponse.status_code,
-						display_message: errResponse.display_message,
-						error_code: errResponse.error_code,
-						error_type: errResponse.error_type,
-					};
-					triggerAlert(
-						`Error deleting subcategory: ${apiError.display_message}`,
-						"error"
-					);
+		if (!subcategoryToDelete) return;
+
+		const removeSubcategoryFromState = () => {
+			setCategories((prev) =>
+				prev.map((cat) =>
+					cat.id === subcategoryToDelete.category_id
+						? {
+								...cat,
+								subcategories: cat.subcategories.filter(
+									(sub) => sub.id !== subcategoryToDelete.id
+								),
+						  }
+						: cat
+				)
+			);
+		};
+
+		const showSuccessAlert = () => {
+			triggerAlert(
+				`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
+				"success"
+			);
+		};
+
+		const showErrorAlert = (message: string) => {
+			triggerAlert(`Error deleting subcategory: ${message}`, "error");
+		};
+
+		try {
+			// Check if the subcategory exists
+			await axios.get(`/api/subcategory/${subcategoryToDelete.id}`);
+
+			// If it exists, delete it
+			await axios.delete(`/api/subcategory/${subcategoryToDelete.id}`);
+
+			removeSubcategoryFromState();
+			showSuccessAlert();
+		} catch (error) {
+			if (axios.isAxiosError(error)) {
+				if (error.response?.status === 404) {
+					// Subcategory not found, remove from state anyway
+					removeSubcategoryFromState();
+					showSuccessAlert();
 				} else {
-					triggerAlert(
-						"An unexpected error occurred while deleting the category.",
-						"error"
+					const errResponse = error?.response?.data;
+					showErrorAlert(
+						errResponse?.display_message || "Unknown error occurred."
 					);
 				}
+			} else {
+				triggerAlert(
+					"An unexpected error occurred while deleting the subcategory.",
+					"error"
+				);
 			}
 		}
+
 		setOpenDialog(false);
 	};
 
@@ -415,7 +430,11 @@ const CategoryManagement = () => {
 						: ""}
 				</DialogTitle>
 				<DialogContent>
-					Are you sure you want to delete this item?
+					{categoryToDelete
+						? "This will remove the category and all its subcategories. Proceed?"
+						: subcategoryToDelete
+						? "This will remove the subcategory. Proceed?"
+						: ""}
 				</DialogContent>
 				<DialogActions>
 					<Button onClick={() => handleCloseAlert()} color='primary'>
