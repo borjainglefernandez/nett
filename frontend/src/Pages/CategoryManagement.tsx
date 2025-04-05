@@ -59,7 +59,7 @@ const CategoryManagement = () => {
 	const handleAddCategory = async () => {
 		if (!newCategory.trim()) return;
 		let newCategoryObj: Category = {
-			id: newCategory,
+			id: "",
 			name: newCategory,
 			subcategories: [],
 		};

@@ -1,11 +1,12 @@
 from models.transaction.txn_category import TxnCategory
 from models import db
+import uuid
 
 
 class TxnSubcategory(db.Model):
     __tablename__ = "txn_subcategory"
 
-    id = db.Column(db.String(120), primary_key=True)
+    id = db.Column(db.String(120), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(120), nullable=False)
     description = db.Column(db.String(4000))
 
@@ -16,8 +17,7 @@ class TxnSubcategory(db.Model):
     category = db.relationship("TxnCategory", back_populates="subcategories")
     txns = db.relationship("Txn", back_populates="subcategory", lazy=True)
 
-    def __init__(self, id: str, name: str, description: str, category: TxnCategory):
-        self.id = id
+    def __init__(self, name: str, description: str, category: TxnCategory):
         self.name = name
         self.description = description
         self.category = category
@@ -30,5 +30,5 @@ class TxnSubcategory(db.Model):
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "category_id": self.category.id
+            "category_id": self.category.id,
         }

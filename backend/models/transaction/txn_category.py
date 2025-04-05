@@ -1,10 +1,11 @@
 from models import db
+import uuid
 
 
 class TxnCategory(db.Model):
     __tablename__ = "txn_category"
 
-    id = db.Column(db.String(120), primary_key=True)
+    id = db.Column(db.String(120), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(120), nullable=False)
 
     # Relationships
@@ -16,8 +17,7 @@ class TxnCategory(db.Model):
         lazy="dynamic",
     )
 
-    def __init__(self, id: str, name: str):
-        self.id = id
+    def __init__(self, name: str):
         self.name = name
 
     def __repr__(self):

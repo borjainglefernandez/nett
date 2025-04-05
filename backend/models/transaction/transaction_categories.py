@@ -5,6 +5,7 @@ from constants.file_constants import CATEGORIES_CSV
 from models.transaction.txn_category import TxnCategory
 from models.transaction.txn_subcategory import TxnSubcategory
 
+
 def seed_transaction_categories():
     with open(CATEGORIES_CSV, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
@@ -16,7 +17,7 @@ def seed_transaction_categories():
             # Check if the category exists by primary (used as id and name)
             category = TxnCategory.query.get(primary)
             if not category:
-                category = TxnCategory(id=primary, name=primary)
+                category = TxnCategory(name=primary)
                 db.session.add(category)
                 db.session.commit()  # Commit so that category is available for relationship
 
@@ -24,7 +25,6 @@ def seed_transaction_categories():
             subcategory = TxnSubcategory.query.get(detailed)
             if not subcategory:
                 subcategory = TxnSubcategory(
-                    id=detailed,
                     name=detailed,
                     description=description,
                     category=category,

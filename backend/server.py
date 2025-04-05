@@ -48,7 +48,6 @@ from models.account.account_type import AccountType
 from models.institution.institution import Institution
 from sqlalchemy.exc import IntegrityError
 
-from werkzeug.exceptions import BadRequest, HTTPException
 
 load_dotenv()
 
@@ -238,21 +237,32 @@ def create_update_category():
         category_id = data.get("id")
         name = data.get("name")
 
-        if not category_id or not name:
-            return jsonify({"error": "ID and name are required"}), 400
+        if not name or (request.method == "PUT" and not category_id):
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.BAD_REQUEST.value,
+                        (
+                            "Name is required"
+                            if request.method == "POST"
+                            else "Id and name are required for update"
+                        ),
+                    )
+                ),
+                HTTPStatus.BAD_REQUEST.value,
+            )
 
         category = TxnCategory.query.get(category_id)
         if category:
             category.name = name
         else:
-            category = TxnCategory(id=category_id, name=name)
+            category = TxnCategory(name=name)
             db.session.add(category)
 
         db.session.commit()
         return jsonify(category.to_dict()), 200
     except Exception as e:
-        print(e)
-        return jsonify(create_formatted_error(e)), 400
+        return jsonify(create_formatted_error(400, str(e))), 400
 
 
 @app.route("/api/subcategory", methods=["POST", "PUT"])
@@ -263,12 +273,36 @@ def create_update_subcategory():
     description = data.get("description", "")
     category_id = data.get("category_id")
 
-    if not subcategory_id or not name or not category_id:
-        return jsonify({"error": "ID, name, and category_id are required"}), 400
+    if (
+        not name
+        or not description
+        or not category_id
+        or (request.method == "PUT" and not subcategory_id)
+    ):
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.BAD_REQUEST.value,
+                    (
+                        "Name, description, and category id are required"
+                        if request.method == "POST"
+                        else "Id, name, description, and category id are required for update"
+                    ),
+                )
+            ),
+            HTTPStatus.BAD_REQUEST.value,
+        )
 
     category = TxnCategory.query.get(category_id)
     if not category:
-        return jsonify({"error": "Category not found"}), 404
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.NOT_FOUND.value, f"Category {category_id} not found"
+                )
+            ),
+            HTTPStatus.NOT_FOUND.value,
+        )
 
     subcategory = TxnSubcategory.query.get(subcategory_id)
     if subcategory:
@@ -277,12 +311,12 @@ def create_update_subcategory():
         subcategory.category = category
     else:
         subcategory = TxnSubcategory(
-            id=subcategory_id, name=name, description=description, category=category
+            name=name, description=description, category=category
         )
         db.session.add(subcategory)
 
     db.session.commit()
-    return jsonify(subcategory.to_dict()), 200
+    return jsonify(subcategory.to_dict())
 
 
 @app.route("/api/category/<string:category_id>", methods=["DELETE"])
@@ -291,7 +325,9 @@ def delete_category(category_id):
     if not category:
         return (
             jsonify(
-                create_formatted_error(HTTPStatus.NOT_FOUND.value, "Category not found")
+                create_formatted_error(
+                    HTTPStatus.NOT_FOUND.value, f"Category {category_id} not found"
+                )
             ),
             HTTPStatus.NOT_FOUND.value,
         )
