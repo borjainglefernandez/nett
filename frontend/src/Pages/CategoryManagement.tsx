@@ -60,7 +60,7 @@ const CategoryManagement = () => {
 		if (!newCategory.trim()) return;
 		let newCategoryObj: Category = {
 			id: "",
-			name: newCategory,
+			name: newCategory.trim(),
 			subcategories: [],
 		};
 		setCategories((prev) => [...prev, newCategoryObj]);
@@ -283,6 +283,26 @@ const CategoryManagement = () => {
 
 			if (categoryUpdates.length === 0 && subcategoryUpdates.length === 0) {
 				triggerAlert("No changes to save!", "success");
+				return;
+			}
+
+			// Validation: Check for blank fields
+			const hasBlankCategoryField = categoryUpdates.some(
+				(cat) => !cat.name || cat.name.trim() === ""
+			);
+			const hasBlankSubcategoryField = subcategoryUpdates.some(
+				(sub) =>
+					!sub.name ||
+					sub.name.trim() === "" ||
+					!sub.description ||
+					sub.description.trim() === ""
+			);
+
+			if (hasBlankCategoryField || hasBlankSubcategoryField) {
+				triggerAlert(
+					"One or more category or subcategory fields are blank.",
+					"error"
+				);
 				return;
 			}
 

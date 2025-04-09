@@ -237,6 +237,7 @@ def create_update_category():
         category_id = data.get("id")
         name = data.get("name")
 
+        # Validate fields needed for put and post
         if not name or (request.method == "PUT" and not category_id):
             return (
                 jsonify(
@@ -252,7 +253,20 @@ def create_update_category():
                 HTTPStatus.BAD_REQUEST.value,
             )
 
-        category = TxnCategory.query.get(category_id)
+        # Validate not creating same category
+        if request.method == "POST":
+            if db.session.query.filter_by(TxnCategory, name=name).first():
+                return (
+                    jsonify(
+                        create_formatted_error(
+                            HTTPStatus.CONFLICT.value,
+                            f"Category '{name}' already exists.",
+                        )
+                    ),
+                    HTTPStatus.CONFLICT.value,
+                )
+
+        category = db.session.query.get(TxnCategory, category_id)
         if category:
             category.name = name
         else:
@@ -293,7 +307,7 @@ def create_update_subcategory():
             HTTPStatus.BAD_REQUEST.value,
         )
 
-    category = TxnCategory.query.get(category_id)
+    category = db.session.get(TxnCategory, category_id)
     if not category:
         return (
             jsonify(
@@ -304,7 +318,24 @@ def create_update_subcategory():
             HTTPStatus.NOT_FOUND.value,
         )
 
-    subcategory = TxnSubcategory.query.get(subcategory_id)
+    # Check for duplicates
+    existing_sub = (
+        db.session.query(TxnSubcategory)
+        .filter_by(name=name, category_id=category_id)
+        .first()
+    )
+    if existing_sub:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.CONFLICT.value,
+                    f"Subcategory '{name}' already exists in this category.",
+                )
+            ),
+            HTTPStatus.CONFLICT.value,
+        )
+
+    subcategory = db.session.get(TxnSubcategory, subcategory_id)
     if subcategory:
         subcategory.name = name
         subcategory.description = description
@@ -351,6 +382,22 @@ def delete_category(category_id):
         jsonify({"message": "Category and its subcategories deleted successfully"}),
         HTTPStatus.OK.value,
     )
+
+
+@app.route("/api/subcategory/<string:subcategory_id>", methods=["GET"])
+def get_subcategory(subcategory_id):
+    subcategory = db.session.get(TxnSubcategory, subcategory_id)
+    if not subcategory:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.NOT_FOUND.value, "Subcategory not found"
+                )
+            ),
+            HTTPStatus.NOT_FOUND.value,
+        )
+
+    return jsonify(subcategory.to_dict()), HTTPStatus.OK.value
 
 
 @app.route("/api/subcategory/<string:subcategory_id>", methods=["DELETE"])
