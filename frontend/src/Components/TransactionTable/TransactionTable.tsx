@@ -1,6 +1,24 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { DataGrid, GridRenderCellParams } from "@mui/x-data-grid";
-import { Paper, Select, MenuItem } from "@mui/material";
+import {
+	DataGrid,
+	GridRenderCellParams,
+	GridColDef,
+	GridActionsCellItem,
+	GridRowSelectionModel,
+} from "@mui/x-data-grid";
+import {
+	Paper,
+	Select,
+	MenuItem,
+	Dialog,
+	DialogTitle,
+	DialogContent,
+	DialogContentText,
+	DialogActions,
+	Button,
+	Stack,
+} from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Transaction from "../../Models/Transaction";
 import { Category, Subcategory } from "../../Models/Category";
 import useApiService from "../../hooks/apiService";
@@ -20,7 +38,13 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const [categoryMap, setCategoryMap] = useState<Record<string, Subcategory[]>>(
 		{}
 	);
-	const { get, put } = useApiService();
+	const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>(
+		[]
+	);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+	const { get, put, del } = useApiService();
 	const alert = useAppAlert();
 
 	useEffect(() => {
@@ -55,7 +79,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			const updatedTxns = localTransactions.map((txn) =>
 				txn.id === id ? { ...txn, ...updates } : txn
 			);
-			console.log(updatedTxns);
 			setLocalTransactions(updatedTxns);
 
 			const response = await put(`/api/transaction/${id}`, { id, ...updates });
@@ -71,20 +94,21 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 	const handleCategoryChange = async (id: string, newCategoryName: string) => {
 		const newCategory = categories.find((cat) => cat.name === newCategoryName);
-
 		if (!newCategory) {
 			alert.trigger(`Category ${newCategoryName} not found`, "error");
 			return;
 		}
-
 		const newSubcategory = newCategory.subcategories?.[0] || null;
+
+		const successMessage =
+			newSubcategory != null
+				? `Category changed to ${newCategory.name} with subcategory ${newSubcategory.name} for transaction ${id}`
+				: `Category changed to ${newCategory.name} for transaction ${id}`;
 
 		await updateTransactionField(
 			id,
 			{ category: newCategory, subcategory: newSubcategory },
-			`Category changed to ${newCategory.name}${
-				newSubcategory ? ` with subcategory ${newSubcategory.name}` : ""
-			} for transaction ${id}`,
+			successMessage,
 			`Failed to update category for transaction ${id}`
 		);
 	};
@@ -116,11 +140,55 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 		);
 	};
 
+	const handleDelete = async () => {
+		try {
+			if (deleteTargetId) {
+				await del(`/api/transaction/${deleteTargetId}`);
+				setLocalTransactions((prev) =>
+					prev.filter((txn) => txn.id !== deleteTargetId)
+				);
+				alert.trigger(`Transaction ${deleteTargetId} deleted`, "success");
+			} else {
+				await Promise.all(
+					selectionModel.map((id) => del(`/api/transaction/${id}`))
+				);
+				setLocalTransactions((prev) =>
+					prev.filter((txn) => !selectionModel.includes(txn.id))
+				);
+				alert.trigger(
+					`${selectionModel.length} transaction(s) deleted`,
+					"success"
+				);
+				setSelectionModel([]);
+			}
+		} catch (error) {
+			alert.trigger("Failed to delete transaction(s)", "error");
+		} finally {
+			setDeleteTargetId(null);
+			setDeleteDialogOpen(false);
+		}
+	};
+
+	const openDeleteDialog = (id: string | null) => {
+		setDeleteTargetId(id);
+		setDeleteDialogOpen(true);
+	};
+
 	const defaultColumnProps = { flex: 1 };
-	const columns = [
+	const columns: GridColDef[] = [
 		{ field: "date", headerName: "Date", ...defaultColumnProps },
 		{ field: "name", headerName: "Name", ...defaultColumnProps },
-		{ field: "amount", headerName: "Amount", ...defaultColumnProps, flex: 0.5 },
+		{
+			field: "amount",
+			headerName: "Amount",
+			...defaultColumnProps,
+			flex: 0.5,
+			renderCell: (params: GridRenderCellParams) =>
+				new Intl.NumberFormat("en-US", {
+					style: "currency",
+					currency: "USD",
+				}).format(params.value),
+		},
 		{
 			field: "category",
 			headerName: "Category",
@@ -128,7 +196,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			flex: 1.5,
 			renderCell: (params: GridRenderCellParams) => (
 				<Select
-					value={params.formattedValue.name || "OTHER"}
+					value={params.formattedValue?.name || "OTHER"}
 					onChange={(e) => handleCategoryChange(params.row.id, e.target.value)}
 					fullWidth
 				>
@@ -147,7 +215,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			flex: 1.5,
 			renderCell: (params: GridRenderCellParams) => (
 				<Select
-					value={params.formattedValue.name || ""}
+					value={params.formattedValue?.name || ""}
 					onChange={(e) =>
 						handleSubcategoryChange(params.row.id, e.target.value)
 					}
@@ -162,6 +230,19 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			),
 		},
 		{ field: "accountName", headerName: "Account", ...defaultColumnProps },
+		{
+			field: "actions",
+			type: "actions",
+			headerName: "Actions",
+			getActions: (params) => [
+				<GridActionsCellItem
+					icon={<DeleteIcon sx={{ color: "red" }} />}
+					label='Delete'
+					onClick={() => openDeleteDialog(params.row.id)}
+					showInMenu={false}
+				/>,
+			],
+		},
 	];
 
 	const rows = useMemo(
@@ -179,14 +260,60 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	);
 
 	return (
-		<Paper sx={{ height: 400, width: "100%" }}>
+		<Paper sx={{ height: 500, width: "100%", p: 2 }}>
+			{selectionModel.length > 0 ? (
+				<Stack direction='row' justifyContent='space-between'>
+					<Button
+						variant='outlined'
+						color='error'
+						onClick={() => openDeleteDialog(null)}
+					>
+						Delete Selected ({selectionModel.length})
+					</Button>
+				</Stack>
+			) : (
+				<></>
+			)}
+
 			<DataGrid
 				rows={rows}
 				columns={columns}
 				pageSizeOptions={[5, 10]}
 				checkboxSelection
-				sx={{ border: 0 }}
+				onRowSelectionModelChange={(newSelection) =>
+					setSelectionModel(newSelection)
+				}
+				rowSelectionModel={selectionModel}
+				initialState={{
+					sorting: {
+						sortModel: [{ field: "date", sort: "desc" }],
+					},
+				}}
+				sx={{
+					border: 0,
+				}}
 			/>
+
+			<Dialog
+				open={deleteDialogOpen}
+				onClose={() => setDeleteDialogOpen(false)}
+			>
+				<DialogTitle>Confirm Deletion</DialogTitle>
+				<DialogContent>
+					<DialogContentText>
+						{deleteTargetId
+							? "Are you sure you want to delete this transaction?"
+							: `Are you sure you want to delete ${selectionModel.length} selected transaction(s)?`}
+					</DialogContentText>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+					<Button onClick={handleDelete} color='error'>
+						Delete
+					</Button>
+				</DialogActions>
+			</Dialog>
+
 			<AppAlert
 				open={alert.open}
 				message={alert.message}

@@ -19,10 +19,13 @@ import CategoryCard from "../Components/CategoryManagement/CategoryCard";
 import AppAlert from "../Components/Alerts/AppAlert";
 import useAppAlert from "../hooks/appAlert";
 import useApiService from "../hooks/apiService"; // Importing the API service
+import { useNavigate } from "react-router-dom";
+import { MAIN_PAGE_ROUTE } from "../Constants/RouteConstants";
 
 const CategoryManagement = () => {
 	const alert = useAppAlert();
-	const { get, post } = useApiService(); // Using the API service
+	const { get, post } = useApiService();
+	const navigate = useNavigate();
 
 	const [categories, setCategories] = useState<Category[]>([]);
 	const [newCategory, setNewCategory] = useState<string>("");
@@ -40,9 +43,14 @@ const CategoryManagement = () => {
 	const [subcategoryToDelete, setSubcategoryToDelete] =
 		useState<Subcategory | null>(null);
 
+	const handleBackButtonClick = () => {
+		navigate(MAIN_PAGE_ROUTE);
+	};
+
 	useEffect(() => {
 		const fetchCategories = async () => {
 			const data = await get("/api/transaction/categories"); // Use the get method
+			console.log(data);
 			if (data) {
 				setCategories(data);
 			}
@@ -347,6 +355,14 @@ const CategoryManagement = () => {
 
 	return (
 		<Box sx={{ maxWidth: "900px", margin: "auto", padding: "20px" }}>
+			<Button
+				variant='contained'
+				color='primary'
+				onClick={handleBackButtonClick}
+				sx={{ marginBottom: "20px" }}
+			>
+				Back to Home
+			</Button>
 			<Box
 				sx={{
 					display: "flex",

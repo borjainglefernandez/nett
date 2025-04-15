@@ -8,6 +8,7 @@ import Transaction from "../Models/Transaction";
 import TransactionTable from "../Components/TransactionTable/TransactionTable";
 import AccountList from "../Components/AccountsList/AccountList";
 import capitalizeWords from "../Utils/StringUtils";
+import { Item } from "../Models/Item";
 
 const Main = () => {
 	// Hooks
@@ -46,6 +47,33 @@ const Main = () => {
 		// Save the link_token to be used later in the Oauth flow.
 		localStorage.setItem("link_token", data.link_token);
 	}, [dispatch]);
+
+	const syncTransactions = useCallback(async () => {
+		const itemResponse = await fetch("/api/item", { method: "GET" });
+		if (!itemResponse.ok) {
+			console.error(itemResponse);
+		}
+		const data = await itemResponse.json();
+		const fetchedItems: Item[] = data.map((item: any) => ({
+			...item,
+		}));
+
+		await Promise.all(
+			fetchedItems.map(async (item) => {
+				const getItemTransactionsResponse = await fetch(
+					"/api/item/" + item.id + "/sync",
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+						},
+					}
+				);
+				const transactionData = await getItemTransactionsResponse.json();
+				console.log(transactionData);
+			})
+		);
+	}, []);
 
 	const getAccounts = useCallback(async () => {
 		const response = await fetch("/api/account", { method: "GET" });
@@ -95,7 +123,7 @@ const Main = () => {
 						})
 					);
 
-					console.log(transactionsForAccount)
+					console.log(transactionsForAccount);
 
 					allTransactions.push(...transactionsForAccount);
 				} catch (error) {
@@ -119,7 +147,8 @@ const Main = () => {
 				});
 				return;
 			}
-			generateToken(); // almost always use this
+			generateToken();
+			syncTransactions();
 			getAccounts();
 		};
 		init();

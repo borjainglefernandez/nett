@@ -242,6 +242,35 @@ def update_transaction(txn_id: str):
         return jsonify(create_formatted_error(400, str(e))), 400
 
 
+@app.route("/api/transaction/<string:txn_id>", methods=["DELETE"])
+def delete_transaction(txn_id: str):
+    try:
+        # Retrieve the transaction using the txn_id
+        txn = db.session.get(Txn, txn_id)
+
+        # If the transaction is not found, return a 404 error
+        if not txn:
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.NOT_FOUND, f"Transaction {txn_id} not found."
+                    )
+                ),
+                HTTPStatus.NOT_FOUND.value,
+            )
+
+        # Delete the transaction from the database
+        db.session.delete(txn)
+        db.session.commit()
+
+        # Return a success response
+        return jsonify({"message": f"Transaction {txn_id} deleted successfully."}), 200
+
+    except Exception as e:
+        # If there is any error during the deletion process, return a 400 error
+        return jsonify(create_formatted_error(400, str(e))), 400
+
+
 @app.route("/api/account/<account_id>/transactions", methods=["GET"])
 def get_transactions(account_id):
     account = Account.query.filter_by(id=account_id).one_or_none()
@@ -514,6 +543,12 @@ def create_item():
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
         return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+
+@app.route("/api/item", methods=["GET"])
+def get_items():
+    categories = TxnCategory.query.all()
+    return jsonify([category.to_dict() for category in categories])
 
 
 def create_institution(name: str, institution_id: str):

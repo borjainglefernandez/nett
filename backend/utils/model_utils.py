@@ -44,7 +44,7 @@ def update_model_instance_from_dict(instance, data: dict, session=None):
 
     for key, value in data.items():
         if key in model_columns:
-            # Type conversion for Decimal, datetime, etc. (optional, depending on your data format)
+            # Type conversion for Decimal, datetime, etc.
             if isinstance(
                 getattr(instance.__class__, key, None), InstrumentedAttribute
             ):
@@ -57,21 +57,22 @@ def update_model_instance_from_dict(instance, data: dict, session=None):
 
             setattr(instance, key, value)
 
-        elif key in relationships and isinstance(value, dict):
-            # Fetch related model by ID from the database
-            related_model_class = relationships[key]
+        elif key in relationships:
             if session is None:
                 raise ValueError(
                     f"Cannot resolve relationship '{key}' without a session"
                 )
-
-            related_instance = session.get(related_model_class, value.get("id"))
-            if related_instance:
-                setattr(instance, key, related_instance)
-            else:
-                print(
-                    f"Warning: Related {related_model_class.__name__} with id {value.get('id')} not found."
-                )
+            if value is None:
+                setattr(instance, key, None)
+            elif isinstance(value, dict):
+                related_model_class = relationships[key]
+                related_instance = session.get(related_model_class, value.get("id"))
+                if related_instance:
+                    setattr(instance, key, related_instance)
+                else:
+                    print(
+                        f"Warning: Related {related_model_class.__name__} with id {value.get('id')} not found."
+                    )
 
     print("\nAfter update:")
     pprint(instance)
