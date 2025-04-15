@@ -7,12 +7,12 @@ export default interface Transaction {
   category: Category; 
   subcategory: Subcategory;
   date?: Date;
-  dateTime?: Date;
+  date_time?: Date;
   merchant?: string | null;
-  logoUrl?: string | null;
+  logo_url?: string | null;
   channel?: PaymentChannel | null;
-  accountId: string;
-  accountName: string;
+  account_id: string;
+  account_name: string;
 }
 
 export enum PaymentChannel {

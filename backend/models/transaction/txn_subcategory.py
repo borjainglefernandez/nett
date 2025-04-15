@@ -32,3 +32,5 @@ class TxnSubcategory(db.Model):
             "description": self.description,
             "category_id": self.category.id,
         }
+
+    to_incl_dict = to_dict

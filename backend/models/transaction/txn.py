@@ -24,7 +24,7 @@ class Txn(db.Model):
     account_id = db.Column(db.String, db.ForeignKey("account.id"), nullable=False)
     category_id = db.Column(db.String, db.ForeignKey("txn_category.id"), nullable=False)
     subcategory_id = db.Column(
-        db.String, db.ForeignKey("txn_subcategory.id"), nullable=False
+        db.String, db.ForeignKey("txn_subcategory.id"), nullable=True
     )
 
     # Relationships
@@ -37,7 +37,7 @@ class Txn(db.Model):
         name: str,
         amount: Decimal,
         category: TxnCategory,
-        subcategory: TxnSubcategory,
+        subcategory: Optional[TxnSubcategory] = None, 
         date: Optional[datetime] = None,
         date_time: Optional[datetime] = None,
         merchant: Optional[str] = None,
@@ -65,14 +65,16 @@ class Txn(db.Model):
             "amount": float(self.amount),  # Convert Decimal to float
             "date": str(self.date),
             "date_time": str(self.date_time),
-            "category": self.category.to_dict() if self.category else None,
-            "subcategory": self.subcategory.to_dict() if self.subcategory else None,
+            "category": self.category.to_incl_dict() if self.category else None,
+            "subcategory": (
+                self.subcategory.to_incl_dict() if self.subcategory else None
+            ),
             "merchant": self.merchant,
             "logo_url": self.logo_url,
             "channel": (
                 self.channel.value if self.channel else None
             ),  # Convert Enum to string
-            "account": self.account_id,  # Account ID reference
+            "account_id": self.account_id,  # Account ID reference
         }
 
     def __repr__(self):

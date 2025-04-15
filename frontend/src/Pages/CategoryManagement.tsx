@@ -8,8 +8,6 @@ import {
 	Grid2,
 	Card,
 	CircularProgress,
-	Snackbar,
-	Alert,
 	Dialog,
 	DialogActions,
 	DialogContent,
@@ -18,8 +16,14 @@ import {
 import { Error } from "../Models/Error";
 import { Category, Subcategory } from "../Models/Category";
 import CategoryCard from "../Components/CategoryManagement/CategoryCard";
+import AppAlert from "../Components/Alerts/AppAlert";
+import useAppAlert from "../hooks/appAlert";
+import useApiService from "../hooks/apiService"; // Importing the API service
 
 const CategoryManagement = () => {
+	const alert = useAppAlert();
+	const { get, post } = useApiService(); // Using the API service
+
 	const [categories, setCategories] = useState<Category[]>([]);
 	const [newCategory, setNewCategory] = useState<string>("");
 	const [modifiedCategories, setModifiedCategories] = useState<Set<string>>(
@@ -29,11 +33,6 @@ const CategoryManagement = () => {
 		Set<string>
 	>(new Set());
 	const [loading, setLoading] = useState<boolean>(true);
-	const [alertMessage, setAlertMessage] = useState<string | null>(null);
-	const [alertSeverity, setAlertSeverity] = useState<"success" | "error">(
-		"success"
-	);
-	const [openAlert, setOpenAlert] = useState<boolean>(false);
 	const [openDialog, setOpenDialog] = useState<boolean>(false);
 	const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
 		null
@@ -43,14 +42,11 @@ const CategoryManagement = () => {
 
 	useEffect(() => {
 		const fetchCategories = async () => {
-			try {
-				const response = await axios.get("/api/transaction/categories");
-				setCategories(response.data);
-			} catch (error) {
-				console.error("Error fetching categories", error);
-			} finally {
-				setLoading(false);
+			const data = await get("/api/transaction/categories"); // Use the get method
+			if (data) {
+				setCategories(data);
 			}
+			setLoading(false);
 		};
 		fetchCategories();
 	}, []);
@@ -58,39 +54,19 @@ const CategoryManagement = () => {
 	// Category Handlers
 	const handleAddCategory = async () => {
 		if (!newCategory.trim()) return;
-		let newCategoryObj: Category = {
+		const newCategoryObj: Category = {
 			id: "",
 			name: newCategory.trim(),
 			subcategories: [],
 		};
 		setCategories((prev) => [...prev, newCategoryObj]);
-		try {
-			await axios.post("/api/category", newCategoryObj);
+		const data = await post("/api/category", newCategoryObj); // Use the post method
+		if (data) {
 			setNewCategory("");
-			triggerAlert(
+			alert.trigger(
 				`Category "${newCategory}" created successfully!`,
 				"success"
 			);
-		} catch (error) {
-			console.log(error);
-			if (axios.isAxiosError(error)) {
-				const errResponse = error?.response?.data;
-				const apiError: Error = {
-					status_code: errResponse.status_code,
-					display_message: errResponse.display_message,
-					error_code: errResponse.error_code,
-					error_type: errResponse.error_type,
-				};
-				triggerAlert(
-					`Error creating category: ${apiError.display_message}`,
-					"error"
-				);
-			} else {
-				triggerAlert(
-					"An unexpected error occurred while creating the category.",
-					"error"
-				);
-			}
 		}
 	};
 
@@ -118,7 +94,7 @@ const CategoryManagement = () => {
 		if (categoryToDelete) {
 			try {
 				await axios.delete(`/api/category/${categoryToDelete.id}`);
-				triggerAlert(
+				alert.trigger(
 					`Category "${categoryToDelete.name}" deleted successfully!`,
 					"success"
 				);
@@ -135,12 +111,12 @@ const CategoryManagement = () => {
 						error_code: errResponse.error_code,
 						error_type: errResponse.error_type,
 					};
-					triggerAlert(
+					alert.trigger(
 						`Error deleting category: ${apiError.display_message}`,
 						"error"
 					);
 				} else {
-					triggerAlert(
+					alert.trigger(
 						"An unexpected error occurred while deleting the category.",
 						"error"
 					);
@@ -224,14 +200,14 @@ const CategoryManagement = () => {
 		};
 
 		const showSuccessAlert = () => {
-			triggerAlert(
+			alert.trigger(
 				`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
 				"success"
 			);
 		};
 
 		const showErrorAlert = (message: string) => {
-			triggerAlert(`Error deleting subcategory: ${message}`, "error");
+			alert.trigger(`Error deleting subcategory: ${message}`, "error");
 		};
 
 		try {
@@ -256,7 +232,7 @@ const CategoryManagement = () => {
 					);
 				}
 			} else {
-				triggerAlert(
+				alert.trigger(
 					"An unexpected error occurred while deleting the subcategory.",
 					"error"
 				);
@@ -282,7 +258,7 @@ const CategoryManagement = () => {
 			});
 
 			if (categoryUpdates.length === 0 && subcategoryUpdates.length === 0) {
-				triggerAlert("No changes to save!", "success");
+				alert.trigger("No changes to save!", "success");
 				return;
 			}
 
@@ -299,7 +275,7 @@ const CategoryManagement = () => {
 			);
 
 			if (hasBlankCategoryField || hasBlankSubcategoryField) {
-				triggerAlert(
+				alert.trigger(
 					"One or more category or subcategory fields are blank.",
 					"error"
 				);
@@ -319,7 +295,7 @@ const CategoryManagement = () => {
 				)
 			);
 
-			triggerAlert("Changes saved successfully!", "success");
+			alert.trigger("Changes saved successfully!", "success");
 
 			// Clear modified state
 			setModifiedCategories(new Set());
@@ -334,12 +310,12 @@ const CategoryManagement = () => {
 					error_code: errResponse.error_code,
 					error_type: errResponse.error_type,
 				};
-				triggerAlert(
+				alert.trigger(
 					`Error saving changes: ${apiError.display_message}`,
 					"error"
 				);
 			} else {
-				triggerAlert(
+				alert.trigger(
 					"An unexpected error occurred while deleting the category.",
 					"error"
 				);
@@ -347,22 +323,10 @@ const CategoryManagement = () => {
 		}
 	};
 
-	const triggerAlert = (message: string, severity: "success" | "error") => {
-		console.log("Triggering alert");
-		setAlertMessage(message);
-		setAlertSeverity(severity);
-		setOpenAlert(true);
-
-		setTimeout(() => {
-			setOpenAlert(false);
-		}, 5000); // matches the autoHideDuration of Snackbar
-	};
-
 	const handleCloseAlert = () => {
 		setOpenDialog(false);
 		setCategoryToDelete(null);
 		setSubcategoryToDelete(null);
-		console.log("Here");
 	};
 
 	// Show a loading spinner until categories are fetched
@@ -473,15 +437,12 @@ const CategoryManagement = () => {
 				</DialogActions>
 			</Dialog>
 
-			<Snackbar
-				open={openAlert}
-				autoHideDuration={5000}
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-			>
-				<Alert severity={alertSeverity} sx={{ width: "100%" }}>
-					{alertMessage}
-				</Alert>
-			</Snackbar>
+			<AppAlert
+				open={alert.open}
+				message={alert.message}
+				severity={alert.severity}
+				onClose={alert.close}
+			/>
 		</Box>
 	);
 };

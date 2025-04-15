@@ -15,7 +15,7 @@ def seed_transaction_categories():
             description = row["DESCRIPTION"].strip()
 
             # Check if the category exists by primary (used as id and name)
-            category = TxnCategory.query.get(primary)
+            category = TxnCategory.query.filter_by(name=primary).one_or_none()
             if not category:
                 category = TxnCategory(name=primary)
                 db.session.add(category)

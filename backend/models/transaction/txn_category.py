@@ -6,7 +6,7 @@ class TxnCategory(db.Model):
     __tablename__ = "txn_category"
 
     id = db.Column(db.String(120), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = db.Column(db.String(120), nullable=False)
+    name = db.Column(db.String(120), nullable=False, unique=True)
 
     # Relationships
     txns = db.relationship("Txn", back_populates="category", lazy=True)
@@ -22,6 +22,12 @@ class TxnCategory(db.Model):
 
     def __repr__(self):
         return f"<TxnCategory(id={self.id}, name={self.name})>"
+
+    def to_incl_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+        }
 
     def to_dict(self):
         return {

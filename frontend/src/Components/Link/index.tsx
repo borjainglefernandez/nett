@@ -20,6 +20,7 @@ const Link = () => {
 					body: `public_token=${public_token}`,
 				});
 				if (!response.ok) {
+					console.log("ERROR");
 					dispatch({
 						type: "SET_STATE",
 						state: {},

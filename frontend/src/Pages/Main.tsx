@@ -80,6 +80,7 @@ const Main = () => {
 						);
 					}
 					const data = await response.json();
+					console.log(data);
 
 					// Convert response to Transaction model
 					const transactionsForAccount: Transaction[] = data.map(
@@ -87,13 +88,14 @@ const Main = () => {
 							...transaction,
 							amount: Number(transaction.amount), // Ensure amount is a number
 							date: transaction.date ? new Date(transaction.date) : null, // Convert date
-							datetime: transaction.date
+							date_time: transaction.date
 								? new Date(transaction.dateTime)
 								: null, // Convert date
-							accountId: account.id, // Associate transactions with account
-							accountName: account.name,
+							account_name: account.name,
 						})
 					);
+
+					console.log(transactionsForAccount)
 
 					allTransactions.push(...transactionsForAccount);
 				} catch (error) {

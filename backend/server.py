@@ -33,6 +33,11 @@ from plaid.model.consumer_report_permissible_purpose import (
 from plaid.api import plaid_api
 from flask_migrate import Migrate
 
+from utils.model_utils import (
+    validate_required_fields_for_model,
+    required_fields_for_model_str,
+    update_model_instance_from_dict,
+)
 from models.transaction.txn_category import TxnCategory
 from models.transaction.txn_subcategory import TxnSubcategory
 from models import db
@@ -202,7 +207,39 @@ def get_accounts():
     return jsonify([account.to_dict() for account in all_accounts])
 
 
-# Get transactions for account
+# Transactions
+
+
+@app.route("/api/transaction/<string:txn_id>", methods=["PUT"])
+def update_transaction(txn_id: str):
+    try:
+        data = request.get_json()
+
+        if not validate_required_fields_for_model(data, Txn):
+            print(required_fields_for_model_str())
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.BAD_REQUEST.value, required_fields_for_model_str(Txn)
+                    )
+                ),
+                HTTPStatus.BAD_REQUEST.value,
+            )
+
+        txn_id = data["id"]
+        txn = db.session.get(Txn, txn_id)
+        if not txn:
+            return jsonify(
+                create_formatted_error(
+                    HTTPStatus.NOT_FOUND, f"Transaction {txn_id} not found."
+                )
+            )
+        update_model_instance_from_dict(txn, data, db.session)
+        db.session.commit()
+        return jsonify({}), 200
+
+    except Exception as e:
+        return jsonify(create_formatted_error(400, str(e))), 400
 
 
 @app.route("/api/account/<account_id>/transactions", methods=["GET"])
@@ -255,7 +292,7 @@ def create_update_category():
 
         # Validate not creating same category
         if request.method == "POST":
-            if db.session.query.filter_by(TxnCategory, name=name).first():
+            if db.session.query(TxnCategory).filter_by(name=name).first():
                 return (
                     jsonify(
                         create_formatted_error(
@@ -266,7 +303,7 @@ def create_update_category():
                     HTTPStatus.CONFLICT.value,
                 )
 
-        category = db.session.query.get(TxnCategory, category_id)
+        category = db.session.get(TxnCategory, category_id)
         if category:
             category.name = name
         else:
@@ -352,7 +389,7 @@ def create_update_subcategory():
 
 @app.route("/api/category/<string:category_id>", methods=["DELETE"])
 def delete_category(category_id):
-    category = TxnCategory.query.get(category_id)
+    category = db.session.query(TxnCategory).get(category_id)
     if not category:
         return (
             jsonify(
@@ -364,7 +401,7 @@ def delete_category(category_id):
         )
 
     # Check if there are any transactions associated with the category
-    transactions = Txn.query.filter_by(category_id=category_id).all()
+    transactions = db.session.query(Txn).filter_by(category_id=category_id).all()
     if transactions:
         return (
             jsonify(
