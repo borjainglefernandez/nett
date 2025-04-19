@@ -79,6 +79,7 @@ interface Account {
   balance: number;
   institution_name: string;
   last_updated: Date;
+  transaction_count: number;
 }
 
 export default Account;

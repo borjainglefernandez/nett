@@ -5,7 +5,6 @@ import {
 	CardContent,
 	CardHeader,
 	Collapse,
-	IconButtonProps,
 	IconButton,
 	styled,
 	Dialog,
@@ -15,6 +14,8 @@ import {
 	DialogContent,
 	Box,
 	Typography,
+	IconButtonProps,
+	Switch,
 } from "@mui/material";
 import Account from "../../Models/Account";
 import { Button, Checkbox } from "plaid-threads";
@@ -35,29 +36,15 @@ interface ExpandMoreProps extends IconButtonProps {
 	expand: boolean;
 }
 
-const ExpandMore = styled((props: ExpandMoreProps) => {
-	const { expand, ...other } = props;
-	return <IconButton {...other} />;
-})(({ theme }) => ({
-	marginLeft: "auto",
-	transition: theme.transitions.create("transform", {
-		duration: theme.transitions.duration.shortest,
-	}),
-	variants: [
-		{
-			props: ({ expand }) => !expand,
-			style: {
-				transform: "rotate(0deg)",
-			},
-		},
-		{
-			props: ({ expand }) => !!expand,
-			style: {
-				transform: "rotate(180deg)",
-			},
-		},
-	],
-}));
+const ExpandMore = styled(IconButton)<{ expand: boolean }>(
+	({ theme, expand }) => ({
+		marginLeft: "auto",
+		transition: theme.transitions.create("transform", {
+			duration: theme.transitions.duration.shortest,
+		}),
+		transform: expand ? "rotate(180deg)" : "rotate(0deg)",
+	})
+);
 
 const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	account,
@@ -103,57 +90,89 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 					</Button>
 				</DialogActions>
 			</Dialog>
-			<Card>
+			<Card sx={{ boxShadow: 3, borderRadius: 2 }}>
 				<CardHeader
 					avatar={
-						<Avatar sx={{ bgcolor: "red" }} aria-label='recipe'>
-							R
+						<Avatar
+							sx={{
+								bgcolor:
+									account.account_subtype === "savings" ? "green" : "blue",
+							}}
+							aria-label='account'
+						>
+							{account.name?.[0]}
 						</Avatar>
 					}
 					title={account.name}
 					action={
-						<Checkbox
-							id={account.id}
-							onChange={(e) => {
-								selectDeselectAccount(account, !selected);
-								setSelected(!selected);
-							}}
-							value={selected}
-						/>
+						<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+							<Switch
+								id={account.id}
+								onChange={(e) => {
+									selectDeselectAccount(account, !selected);
+									setSelected(!selected);
+								}}
+								checked={selected}
+								size='small' // Making the select checkbox smaller
+							/>
+							<IconButton
+								aria-label='remove account'
+								onClick={() => setOpenRemoveAccountDialog(true)}
+								sx={{ color: "error.main" }}
+							>
+								<DeleteIcon />
+							</IconButton>
+							<ExpandMore
+								expand={expanded}
+								onClick={handleExpandClick}
+								aria-expanded={expanded}
+								aria-label='show more'
+							>
+								<ExpandMoreIcon />
+							</ExpandMore>
+						</Box>
 					}
 					subheader={`Last updated ${formatDate(account.last_updated)}`}
+					sx={{ fontWeight: "bold" }}
 				/>
 				<CardActions disableSpacing>
-					<IconButton
-						aria-label='remove account'
-						onClick={() => setOpenRemoveAccountDialog(true)}
-					>
-						<DeleteIcon color={"error"} />
-					</IconButton>
-					<ExpandMore
-						expand={expanded}
-						onClick={handleExpandClick}
-						aria-expanded={expanded}
-						aria-label='show more'
-					>
-						<ExpandMoreIcon />
-					</ExpandMore>
+					{/* Empty since we moved the collapse icon to the top */}
 				</CardActions>
 				<Collapse in={expanded} timeout='auto' unmountOnExit>
 					<CardContent>
-						<Box sx={{ display: "flex", alignItems: "center" }}>
-							<IconButton>
-								<SavingsTwoToneIcon />
-							</IconButton>
-							<Typography>{`$${account.balance}`}</Typography>
-							<IconButton>
-								<CategoryTwoToneIcon />
-							</IconButton>
-							<Typography>{`${account.account_type}`}</Typography>
-							<IconButton>
-								<ClassTwoToneIcon />
-							</IconButton>
-							<Typography>{`${account.account_subtype}`}</Typography>
+						<Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+							<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+								<IconButton sx={{ color: "primary.main" }}>
+									<SavingsTwoToneIcon />
+								</IconButton>
+								<Typography variant='body2' color='textSecondary'>
+									{`$${account.balance?.toFixed(2)}`}
+								</Typography>
+							</Box>
+							<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+								<IconButton sx={{ color: "secondary.main" }}>
+									<CategoryTwoToneIcon />
+								</IconButton>
+								<Typography variant='body2' color='textSecondary'>
+									{account.account_type}
+								</Typography>
+							</Box>
+							<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+								<IconButton sx={{ color: "info.main" }}>
+									<ClassTwoToneIcon />
+								</IconButton>
+								<Typography variant='body2' color='textSecondary'>
+									{account.account_subtype}
+								</Typography>
+							</Box>
+							<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+								<IconButton sx={{ color: "warning.main" }}>
+									<CategoryTwoToneIcon />
+								</IconButton>
+								<Typography variant='body2' color='textSecondary'>
+									{`${account.transaction_count ?? 0} transactions`}
+								</Typography>
+							</Box>
 						</Box>
 					</CardContent>
 				</Collapse>

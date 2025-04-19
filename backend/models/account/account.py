@@ -78,6 +78,7 @@ class Account(db.Model):
             "account_subtype": (
                 self.account_subtype.value if self.account_subtype else None
             ),
+            "transaction_count": len(self.transactions),
         }
 
     def get_transactions(self):
