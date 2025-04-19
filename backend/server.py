@@ -33,10 +33,12 @@ from plaid.model.consumer_report_permissible_purpose import (
 from plaid.api import plaid_api
 from flask_migrate import Migrate
 
+from models.budget.budget import Budget, BudgetFrequency
 from utils.model_utils import (
-    validate_required_fields_for_model,
+    has_required_fields_for_model,
     required_fields_for_model_str,
     update_model_instance_from_dict,
+    create_model_instance_from_dict,
 )
 from models.transaction.txn_category import TxnCategory
 from models.transaction.txn_subcategory import TxnSubcategory
@@ -198,13 +200,65 @@ def get_access_token():
         return json.loads(e.body), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
-# Get accounts
+# Accounts
 
 
 @app.route("/api/account", methods=["GET"])
 def get_accounts():
     all_accounts = Account.query.all()
     return jsonify([account.to_dict() for account in all_accounts])
+
+
+# Budgets
+@app.route("/api/budget", methods=["POST"])
+def create_budget():
+    data = request.get_json()
+    budget_id = data.get("id")
+    amount = data.get("amount")
+    frequency = data.get("frequency")
+    category_id = data.get("category_id")
+    subcategory_id = data.get("subcategory_id")
+
+    if not budget_id or not amount or not frequency or not category_id:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.BAD_REQUEST.value,
+                    "Id, amount, frequency, and category id are required",
+                )
+            ),
+            HTTPStatus.BAD_REQUEST.value,
+        )
+
+    # Check for duplicates
+    existing_budget = (
+        db.session.query(Budget)
+        .filter_by(id=budget_id, category_id=category_id)
+        .first()
+    )
+    if existing_budget:
+        return (
+            jsonify(
+                create_formatted_error(
+                    HTTPStatus.CONFLICT.value,
+                    f"Budget '{budget_id}' already exists in this category.",
+                )
+            ),
+            HTTPStatus.CONFLICT.value,
+        )
+
+    # Create new budget
+    new_budget = Budget(
+        id=budget_id,
+        amount=amount,
+        frequency=frequency,
+        category_id=category_id,
+        subcategory_id=subcategory_id,
+    )
+    db.session.add(new_budget)
+    db.session.commit()
+
+    return jsonify(new_budget.to_dict()), 201
 
 
 # Transactions
@@ -215,8 +269,7 @@ def update_transaction(txn_id: str):
     try:
         data = request.get_json()
 
-        if not validate_required_fields_for_model(data, Txn):
-            print(required_fields_for_model_str())
+        if not has_required_fields_for_model(data, Txn):
             return (
                 jsonify(
                     create_formatted_error(
@@ -296,7 +349,30 @@ def get_categories():
     return jsonify([category.to_dict() for category in categories])
 
 
-@app.route("/api/category", methods=["POST", "PUT"])
+@app.route("/api/category", methods=["POST"])
+def create_category():
+    try:
+        data = request.get_json()
+        data.pop("id", None) # Remove id if it exists
+        if not has_required_fields_for_model(data, TxnCategory):
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.BAD_REQUEST.value,
+                        required_fields_for_model_str(TxnCategory),
+                    )
+                ),
+                HTTPStatus.BAD_REQUEST.value,
+            )
+        create_model_instance_from_dict(TxnCategory, data, db.session)
+        db.session.commit()
+        return jsonify({}), 200
+
+    except Exception as e:
+        return jsonify(create_formatted_error(400, str(e))), 400
+
+
+@app.route("/api/category", methods=["PUT"])
 def create_update_category():
     try:
         data = request.get_json()
@@ -497,7 +573,7 @@ def delete_subcategory(subcategory_id):
     return jsonify({"message": "Subcategory deleted successfully"}), HTTPStatus.OK.value
 
 
-# Create item
+# Items
 
 
 @app.route("/api/item", methods=["POST"])
@@ -608,9 +684,6 @@ def add_accounts_from_item(access_token: str, item_id: str, institution_id: str)
     return new_accounts
 
 
-# Sync Transactions for Item
-
-
 @app.route("/api/item/<item_id>/sync", methods=["POST"])
 def sync_item_transactions(item_id: str):
     try:
@@ -699,8 +772,7 @@ def handle_added_transactions(transactions: list):
         # Lookup category or create a new one if it doesn't exist
         category = TxnCategory.query.filter_by(name=primary_category_name).one_or_none()
         if not category:
-            category = TxnCategory(
-                id=primary_category_name.lower(), name=primary_category_name
+            category = TxnCategory(name=primary_category_name
             )
             db.session.add(category)
             db.session.commit()
@@ -711,7 +783,6 @@ def handle_added_transactions(transactions: list):
         ).one_or_none()
         if not subcategory:
             subcategory = TxnSubcategory(
-                id=detailed_category_name.lower(),
                 name=detailed_category_name,
                 description=f"Subcategory of {primary_category_name}",
                 category=category,
@@ -748,22 +819,6 @@ def handle_modified_transactions(transactions: list):
 
 def handle_removed_transactions(transactions: list):
     pass
-
-
-# Retrieve real-time balance data for each of an Item's accounts
-# https://plaid.com/docs/#balance
-
-
-@app.route("/api/balance", methods=["GET"])
-def get_balance():
-    try:
-        request = AccountsBalanceGetRequest(access_token=access_token)
-        response = client.accounts_balance_get(request)
-        pretty_print_response(response.to_dict())
-        return jsonify(response.to_dict())
-    except plaid.ApiException as e:
-        error_response = format_error(e)
-        return jsonify(error_response)
 
 
 def pretty_print_response(response):

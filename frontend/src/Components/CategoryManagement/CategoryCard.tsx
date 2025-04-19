@@ -11,6 +11,7 @@ import {
 
 import { Category, Subcategory } from "../../Models/Category";
 import SubcategoryRow from "./SubcategoryRow";
+import React from "react";
 
 interface CategoryCardProps {
 	category: Category;
@@ -23,9 +24,7 @@ interface CategoryCardProps {
 		field: keyof Subcategory, // Enforces valid fields
 		value: string
 	) => void;
-	handleDeleteSubcategory: (
-		subcategory: Subcategory
-	) => void;
+	handleDeleteSubcategory: (subcategory: Subcategory) => void;
 }
 
 const CategoryCard: React.FC<CategoryCardProps> = ({
@@ -42,7 +41,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 	);
 
 	return (
-		<Card key={category.name} sx={{ marginBottom: "20px", boxShadow: 3 }}>
+		<Card key={category.id} sx={{ marginBottom: "20px", boxShadow: 3 }}>
 			<CardContent>
 				<Grid2 container spacing={2} alignItems='center'>
 					<Grid2 size={8}>
@@ -106,4 +105,4 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
 	);
 };
 
-export default CategoryCard;
+export default React.memo(CategoryCard);

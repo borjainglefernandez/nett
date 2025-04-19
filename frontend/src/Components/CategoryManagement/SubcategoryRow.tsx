@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Box, Button, Divider, Grid2, TextField } from "@mui/material";
 import { Category, Subcategory } from "../../Models/Category";
+import React from "react";
 
 interface SubcategoryRowProps {
 	category: Category;
@@ -60,7 +61,7 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 	};
 
 	return (
-		<Box key={subcategory.name} sx={{ marginTop: "10px" }}>
+		<Box key={subcategory.id} sx={{ marginTop: "10px" }}>
 			<Divider sx={{ marginBottom: "10px" }} />
 			<Grid2 container spacing={2} alignItems='center'>
 				<Grid2 size={5}>
@@ -104,4 +105,4 @@ const SubcategoryRow: React.FC<SubcategoryRowProps> = ({
 	);
 };
 
-export default SubcategoryRow;
+export default React.memo(SubcategoryRow);

@@ -70,7 +70,6 @@ const Main = () => {
 					}
 				);
 				const transactionData = await getItemTransactionsResponse.json();
-				console.log(transactionData);
 			})
 		);
 	}, []);
@@ -108,7 +107,6 @@ const Main = () => {
 						);
 					}
 					const data = await response.json();
-					console.log(data);
 
 					// Convert response to Transaction model
 					const transactionsForAccount: Transaction[] = data.map(
@@ -122,9 +120,6 @@ const Main = () => {
 							account_name: account.name,
 						})
 					);
-
-					console.log(transactionsForAccount);
-
 					allTransactions.push(...transactionsForAccount);
 				} catch (error) {
 					console.error(error);
