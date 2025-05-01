@@ -17,6 +17,8 @@ import {
 	DialogActions,
 	Button,
 	Stack,
+	Avatar,
+	Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import Transaction from "../../Models/Transaction";
@@ -177,7 +179,26 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const defaultColumnProps = { flex: 1 };
 	const columns: GridColDef[] = [
 		{ field: "date", headerName: "Date", ...defaultColumnProps },
-		{ field: "name", headerName: "Name", ...defaultColumnProps },
+		{
+			field: "name",
+			headerName: "Name",
+			...defaultColumnProps,
+			renderCell: (params: GridRenderCellParams) => (
+				<Stack
+					direction='row'
+					alignItems='center'
+					spacing={1}
+					sx={{ height: "100%", alignSelf: "center" }} 
+				>
+					<Avatar
+						src={params.row.logo_url}
+						alt={params.value}
+						sx={{ width: 24, height: 24 }}
+					/>
+					<Typography variant='body2'>{params.value}</Typography>
+				</Stack>
+			),
+		},
 		{
 			field: "amount",
 			headerName: "Amount",
@@ -255,6 +276,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				subcategory: transaction.subcategory,
 				date: transaction.date,
 				accountName: transaction.account_name,
+				logo_url: transaction.logo_url, // <-- add this
 			})),
 		[localTransactions]
 	);

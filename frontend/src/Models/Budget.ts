@@ -7,11 +7,9 @@ interface Budget {
 }
 
 export enum BudgetFrequency {
-    WEEKLY = "weekly",
-    BIWEEKLY = "biweekly",
-    MONTHLY = "monthly",
-    QUARTERLY = "quarterly",
-    YEARLY = "yearly"
+    WEEKLY = "Weekly",
+    MONTHLY = "Monthly",
+    YEARLY = "Yearly"
 }
 
 export default Budget;

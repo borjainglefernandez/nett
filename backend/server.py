@@ -893,6 +893,23 @@ def handle_modified_transactions(transactions: list):
 def handle_removed_transactions(transactions: list):
     pass
 
+# Budget Periods
+@app.route("/api/budget_period", methods=["GET"])
+def get_budget_period():
+    period_str = request.args.get("frequency", "").lower()
+    try:
+        period_type = BudgetFrequency(period_str)
+    except ValueError:
+        return jsonify(create_formatted_error(400, f"Frequency {period_str} not supported")), 400
+
+    budget_periods = []
+    if period_type == BudgetFrequency.WEEKLY:
+        pass
+        
+
+
+    return jsonify(budget_periods)
+
 
 def pretty_print_response(response):
     print(json.dumps(response, indent=2, sort_keys=True, default=str))
