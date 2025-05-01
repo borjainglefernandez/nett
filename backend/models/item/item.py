@@ -39,3 +39,11 @@ class Item(db.Model):
             f"institution={self.institution}, "
             f"accounts={len(self.accounts)})>"
         )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "access_token": f"{self.access_token[:6]}...",
+            "cursor": self.cursor,
+            "institution_id": self.institution_id,
+        }

@@ -22,7 +22,9 @@ def seed_transaction_categories():
                 db.session.commit()  # Commit so that category is available for relationship
 
             # Check if the subcategory exists by detailed (used as id and name)
-            subcategory = TxnSubcategory.query.get(detailed)
+            subcategory = TxnSubcategory.query.filter_by(
+                name=detailed, category=category
+            ).one_or_none()
             if not subcategory:
                 subcategory = TxnSubcategory(
                     name=detailed,

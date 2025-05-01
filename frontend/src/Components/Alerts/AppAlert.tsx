@@ -1,10 +1,10 @@
 // Components/AppAlert.tsx
-import { Snackbar, Alert } from "@mui/material";
+import { Snackbar, Alert, AlertProps } from "@mui/material";
 
 interface AppAlertProps {
 	open: boolean;
 	message: string | null;
-	severity: "success" | "error";
+	severity: AlertProps["severity"];
 	onClose: () => void;
 	autoHideDuration?: number;
 }

@@ -3,15 +3,15 @@ import { Error } from "../Models/Error";  // Assuming you already have the Error
 import useAppAlert from "./appAlert";  // Using your custom alert hook
 
 // Create a centralized API service to manage requests and error handling
-const useApiService = () => {
-	const alert = useAppAlert();
+const useApiService = (alert: ReturnType<typeof useAppAlert>) => {
 
 	// Helper function to handle errors
     const handleError = (error: unknown) => {
         console.log(error);
         if (error instanceof AxiosError) {
         const errResponse = error.response?.data as Error; // Type assertion here
-            if (errResponse) {
+		if (errResponse) {
+			console.log(error);
             // Handle Axios error response
             alert.trigger(
             `Error: ${errResponse.display_message}`,

@@ -4,7 +4,9 @@ import CategoryManagement from "./Pages/CategoryManagement";
 import {
 	MAIN_PAGE_ROUTE,
 	CATEGORY_MANAGEMENT_PAGE_ROUTE,
+	BUDGET_MANAGEMENT_PAGE_ROUTE,
 } from "./Constants/RouteConstants";
+import BudgetManagement from "./Pages/BudgetManagement";
 
 const App = () => {
 	return (
@@ -14,6 +16,10 @@ const App = () => {
 				<Route
 					path={CATEGORY_MANAGEMENT_PAGE_ROUTE}
 					element={<CategoryManagement />}
+				/>
+				<Route
+					path={BUDGET_MANAGEMENT_PAGE_ROUTE}
+					element={<BudgetManagement />}
 				/>
 			</Routes>
 		</Router>

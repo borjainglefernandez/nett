@@ -24,7 +24,7 @@ import { MAIN_PAGE_ROUTE } from "../Constants/RouteConstants";
 
 const CategoryManagement = () => {
 	const alert = useAppAlert();
-	const { get, post } = useApiService();
+	const { get, post } = useApiService(alert);
 	const navigate = useNavigate();
 
 	const [categories, setCategories] = useState<Category[]>([]);

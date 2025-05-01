@@ -30,7 +30,7 @@ def required_fields_for_model_str(model):
     return f"Fields {', '.join(required_fields)} are required for {str(model)}"
 
 
-def create_model_instance_from_dict(model_class, data: dict, session=None):
+def create_model_instance_from_dict(model_class, data: dict, session):
     """
     Creates a new SQLAlchemy model instance from a dictionary.
     Handles direct fields and relationships (if session is provided).
@@ -70,7 +70,7 @@ def create_model_instance_from_dict(model_class, data: dict, session=None):
                     print(
                         f"Warning: Related {related_model_class.__name__} with id {value.get('id')} not found."
                     )
-
+    session.add(model_class(**init_kwargs))
     return model_class(**init_kwargs)
 
 

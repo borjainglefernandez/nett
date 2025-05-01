@@ -212,53 +212,89 @@ def get_accounts():
 # Budgets
 @app.route("/api/budget", methods=["POST"])
 def create_budget():
-    data = request.get_json()
-    budget_id = data.get("id")
-    amount = data.get("amount")
-    frequency = data.get("frequency")
-    category_id = data.get("category_id")
-    subcategory_id = data.get("subcategory_id")
+    try:
+        data = request.get_json()
+        data.pop("id", None)  # Remove id if it exists
+        if not has_required_fields_for_model(data, Budget):
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.BAD_REQUEST.value,
+                        required_fields_for_model_str(Budget),
+                    )
+                ),
+                HTTPStatus.BAD_REQUEST.value,
+            )
+        create_model_instance_from_dict(Budget, data, db.session)
+        db.session.commit()
+        return jsonify({}), 200
 
-    if not budget_id or not amount or not frequency or not category_id:
-        return (
-            jsonify(
+    except Exception as e:
+        return jsonify(create_formatted_error(400, str(e))), 400
+
+@app.route("/api/budget", methods=["PUT"])
+def update_budget():
+    try:
+
+        data = request.get_json()
+        if not has_required_fields_for_model(data, Budget):
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.BAD_REQUEST.value,
+                        required_fields_for_model_str(Budget),
+                    )
+                ),  
+                HTTPStatus.BAD_REQUEST.value,
+            )
+        budget_id = data["id"]
+        budget = db.session.get(Budget, budget_id)
+        if not budget:
+            return jsonify(
                 create_formatted_error(
-                    HTTPStatus.BAD_REQUEST.value,
-                    "Id, amount, frequency, and category id are required",
+                    HTTPStatus.NOT_FOUND, f"Budget {budget_id} not found."
                 )
-            ),
-            HTTPStatus.BAD_REQUEST.value,
-        )
+            )
+        update_model_instance_from_dict(budget, data, db.session)
+        db.session.commit()
+        return jsonify({}), 200
 
-    # Check for duplicates
-    existing_budget = (
-        db.session.query(Budget)
-        .filter_by(id=budget_id, category_id=category_id)
-        .first()
-    )
-    if existing_budget:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.CONFLICT.value,
-                    f"Budget '{budget_id}' already exists in this category.",
-                )
-            ),
-            HTTPStatus.CONFLICT.value,
-        )
+    except Exception as e:
+        return jsonify(create_formatted_error(400, str(e))), 400
 
-    # Create new budget
-    new_budget = Budget(
-        id=budget_id,
-        amount=amount,
-        frequency=frequency,
-        category_id=category_id,
-        subcategory_id=subcategory_id,
-    )
-    db.session.add(new_budget)
-    db.session.commit()
+@app.route("/api/budget", methods=["GET"])
+def get_budgets():
+    budgets = Budget.query.all()
+    return jsonify([budget.to_dict() for budget in budgets])
 
-    return jsonify(new_budget.to_dict()), 201
+
+@app.route("/api/budget/<string:budget_id>", methods=["DELETE"])
+def delete_budget(budget_id: str):
+    try:
+        # Retrieve the transaction using the txn_id
+        budget = db.session.get(Budget, budget_id)
+
+        # If the transaction is not found, return a 404 error
+        if not budget:
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.NOT_FOUND, f"Budget {budget} not found."
+                    )
+                ),
+                HTTPStatus.NOT_FOUND.value,
+            )
+
+        # Delete the transaction from the database
+        db.session.delete(budget)
+        db.session.commit()
+
+        # Return a success response
+        return jsonify({"message": f"Budget {budget_id} deleted successfully."}), 200
+
+    except Exception as e:
+        # If there is any error during the deletion process, return a 400 error
+        return jsonify(create_formatted_error(400, str(e))), 400
 
 
 # Transactions
@@ -353,7 +389,7 @@ def get_categories():
 def create_category():
     try:
         data = request.get_json()
-        data.pop("id", None) # Remove id if it exists
+        data.pop("id", None)  # Remove id if it exists
         if not has_required_fields_for_model(data, TxnCategory):
             return (
                 jsonify(
@@ -363,6 +399,17 @@ def create_category():
                     )
                 ),
                 HTTPStatus.BAD_REQUEST.value,
+            )
+        category_name = data.get("name")
+        if db.session.query(TxnCategory).filter_by(name=category_name).first():
+            return (
+                jsonify(
+                    create_formatted_error(
+                        HTTPStatus.CONFLICT.value,
+                        f"Category '{category_name}' already exists.",
+                    )
+                ),
+                HTTPStatus.CONFLICT.value,
             )
         create_model_instance_from_dict(TxnCategory, data, db.session)
         db.session.commit()
@@ -623,8 +670,8 @@ def create_item():
 
 @app.route("/api/item", methods=["GET"])
 def get_items():
-    categories = TxnCategory.query.all()
-    return jsonify([category.to_dict() for category in categories])
+    items = Item.query.all()
+    return jsonify([item.to_dict() for item in items])
 
 
 def create_institution(name: str, institution_id: str):
@@ -747,41 +794,58 @@ def sync_item_transactions(item_id: str):
     except Exception as e:
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
+        print(error_response)
         return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
 def handle_added_transactions(transactions: list):
-    for transaction in transactions:
+    print(f"Handling {len(transactions)} new transactions")
+
+    for i, transaction in enumerate(transactions):
+        print(
+            f"\nProcessing transaction {i + 1}/{len(transactions)}: ID {transaction.get('transaction_id')}"
+        )
+
         existing_txn = Txn.query.filter_by(
             id=transaction["transaction_id"]
         ).one_or_none()
         if existing_txn:
+            print(
+                f"Transaction {transaction['transaction_id']} already exists, skipping."
+            )
             continue
 
         account = Account.query.filter_by(id=transaction["account_id"]).one_or_none()
         if not account:
+            print(
+                f"Account {transaction['account_id']} not found, skipping transaction."
+            )
             continue
 
-        # Extract category and subcategory from transaction
-        primary_category_name = transaction["personal_finance_category"].get(
-            "primary", "OTHER"
+        # Extract category and subcategory
+        personal_finance = transaction.get("personal_finance_category", {})
+        primary_category_name = personal_finance.get("primary", "OTHER").strip()
+        detailed_category_name = personal_finance.get("detailed", "OTHER").strip()
+        print(
+            f"Primary category: {primary_category_name}, Subcategory: {detailed_category_name}"
         )
-        detailed_category_name = transaction["personal_finance_category"].get(
-            "detailed", "OTHER"
-        )
-        # Lookup category or create a new one if it doesn't exist
+
+        # Get or create category
         category = TxnCategory.query.filter_by(name=primary_category_name).one_or_none()
         if not category:
-            category = TxnCategory(name=primary_category_name
-            )
+            print(f"Creating new category: {primary_category_name}")
+            category = TxnCategory(name=primary_category_name)
             db.session.add(category)
             db.session.commit()
 
-        # Lookup subcategory or create a new one if it doesn't exist
+        # Get or create subcategory
         subcategory = TxnSubcategory.query.filter_by(
-            name=detailed_category_name, category=category
+            name=detailed_category_name, category_id=category.id
         ).one_or_none()
         if not subcategory:
+            print(
+                f"Creating new subcategory: {detailed_category_name} under {primary_category_name}"
+            )
             subcategory = TxnSubcategory(
                 name=detailed_category_name,
                 description=f"Subcategory of {primary_category_name}",
@@ -794,8 +858,14 @@ def handle_added_transactions(transactions: list):
             payment_channel_str = str(transaction["payment_channel"])
             payment_channel = PaymentChannel(payment_channel_str)
         except ValueError:
+            print(
+                f"Invalid payment channel '{transaction.get('payment_channel')}', defaulting to OTHER"
+            )
             payment_channel = PaymentChannel.OTHER
 
+        print(
+            f"Creating new transaction record for {transaction.get('name')} on {transaction.get('date')}"
+        )
         new_txn = Txn(
             id=transaction.get("transaction_id"),
             name=transaction.get("name"),
@@ -810,7 +880,10 @@ def handle_added_transactions(transactions: list):
             account_id=account.id,
         )
         db.session.add(new_txn)
+
+    print("Committing all new transactions to the database...")
     db.session.commit()
+    print("Done.")
 
 
 def handle_modified_transactions(transactions: list):

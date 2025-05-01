@@ -44,8 +44,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-	const { get, put, del } = useApiService();
 	const alert = useAppAlert();
+	const { get, put, del } = useApiService(alert);
 
 	useEffect(() => {
 		const fetchCategories = async () => {

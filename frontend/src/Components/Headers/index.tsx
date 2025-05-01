@@ -6,7 +6,10 @@ import Context from "../../Context";
 import styles from "./index.module.scss";
 import Button from "@mui/material/Button";
 import { useNavigate } from "react-router-dom";
-import { CATEGORY_MANAGEMENT_PAGE_ROUTE } from "../../Constants/RouteConstants";
+import {
+	BUDGET_MANAGEMENT_PAGE_ROUTE,
+	CATEGORY_MANAGEMENT_PAGE_ROUTE,
+} from "../../Constants/RouteConstants";
 
 const Header = () => {
 	const {} = useContext(Context);
@@ -30,6 +33,10 @@ const Header = () => {
 					<Button onClick={() => navigate(CATEGORY_MANAGEMENT_PAGE_ROUTE)}>
 						{" "}
 						Manage Categories{" "}
+					</Button>
+					<Button onClick={() => navigate(BUDGET_MANAGEMENT_PAGE_ROUTE)}>
+						{" "}
+						Manage Budgets{" "}
 					</Button>
 				</div>
 			</>
