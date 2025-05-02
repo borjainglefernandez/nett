@@ -32,10 +32,6 @@ interface AccountSelectableCard {
 	selectDeselectAccount: (account: Account, select: boolean) => void;
 }
 
-interface ExpandMoreProps extends IconButtonProps {
-	expand: boolean;
-}
-
 const ExpandMore = styled(IconButton)<{ expand: boolean }>(
 	({ theme, expand }) => ({
 		marginLeft: "auto",

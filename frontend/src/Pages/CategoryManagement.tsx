@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
 import {
 	TextField,
 	Button,
@@ -24,7 +23,7 @@ import { MAIN_PAGE_ROUTE } from "../Constants/RouteConstants";
 
 const CategoryManagement = () => {
 	const alert = useAppAlert();
-	const { get, post } = useApiService(alert);
+	const { get, post, put, del } = useApiService(alert);
 	const navigate = useNavigate();
 
 	const [categories, setCategories] = useState<Category[]>([]);
@@ -50,7 +49,6 @@ const CategoryManagement = () => {
 	useEffect(() => {
 		const fetchCategories = async () => {
 			const data = await get("/api/transaction/categories"); // Use the get method
-			console.log(data);
 			if (data) {
 				setCategories(data);
 			}
@@ -100,35 +98,15 @@ const CategoryManagement = () => {
 
 	const handleDeleteCategory = async () => {
 		if (categoryToDelete) {
-			try {
-				await axios.delete(`/api/category/${categoryToDelete.id}`);
+			const data = await del(`/api/category/${categoryToDelete.id}`);
+			if (data) {
+				setCategories((prev) =>
+					prev.filter((cat) => cat.id !== categoryToDelete.id)
+				);
 				alert.trigger(
 					`Category "${categoryToDelete.name}" deleted successfully!`,
 					"success"
 				);
-				setCategories((prev) =>
-					prev.filter((cat) => cat.id !== categoryToDelete.id)
-				);
-			} catch (error) {
-				console.log(error);
-				if (axios.isAxiosError(error)) {
-					const errResponse = error?.response?.data;
-					const apiError: Error = {
-						status_code: errResponse.status_code,
-						display_message: errResponse.display_message,
-						error_code: errResponse.error_code,
-						error_type: errResponse.error_type,
-					};
-					alert.trigger(
-						`Error deleting category: ${apiError.display_message}`,
-						"error"
-					);
-				} else {
-					alert.trigger(
-						"An unexpected error occurred while deleting the category.",
-						"error"
-					);
-				}
 			}
 		}
 		setOpenDialog(false);
@@ -192,7 +170,13 @@ const CategoryManagement = () => {
 	const handleDeleteSubcategory = async () => {
 		if (!subcategoryToDelete) return;
 
-		const removeSubcategoryFromState = () => {
+		// Check if the subcategory exists
+		const getData = await get(`/api/subcategory/${subcategoryToDelete.id}`);
+
+		// If it exists, delete it
+		const delData = await del(`/api/subcategory/${subcategoryToDelete.id}`);
+
+		if (getData && delData) {
 			setCategories((prev) =>
 				prev.map((cat) =>
 					cat.id === subcategoryToDelete.category_id
@@ -205,129 +189,78 @@ const CategoryManagement = () => {
 						: cat
 				)
 			);
-		};
-
-		const showSuccessAlert = () => {
 			alert.trigger(
 				`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
 				"success"
 			);
-		};
-
-		const showErrorAlert = (message: string) => {
-			alert.trigger(`Error deleting subcategory: ${message}`, "error");
-		};
-
-		try {
-			// Check if the subcategory exists
-			await axios.get(`/api/subcategory/${subcategoryToDelete.id}`);
-
-			// If it exists, delete it
-			await axios.delete(`/api/subcategory/${subcategoryToDelete.id}`);
-
-			removeSubcategoryFromState();
-			showSuccessAlert();
-		} catch (error) {
-			if (axios.isAxiosError(error)) {
-				if (error.response?.status === 404) {
-					// Subcategory not found, remove from state anyway
-					removeSubcategoryFromState();
-					showSuccessAlert();
-				} else {
-					const errResponse = error?.response?.data;
-					showErrorAlert(
-						errResponse?.display_message || "Unknown error occurred."
-					);
-				}
-			} else {
-				alert.trigger(
-					"An unexpected error occurred while deleting the subcategory.",
-					"error"
-				);
-			}
 		}
 
 		setOpenDialog(false);
 	};
 
 	const handleOnSaveChanges = async () => {
-		try {
-			const categoryUpdates = categories.filter((category) =>
-				modifiedCategories.has(category.id)
-			);
+		const categoryUpdates = categories.filter((category) =>
+			modifiedCategories.has(category.id)
+		);
 
-			const subcategoryUpdates: Subcategory[] = [];
-			categories.forEach((category) => {
-				category.subcategories.forEach((subcategory) => {
-					if (modifiedSubcategories.has(subcategory.id)) {
-						subcategoryUpdates.push(subcategory);
-					}
-				});
+		const subcategoryUpdates: Subcategory[] = [];
+		categories.forEach((category) => {
+			category.subcategories.forEach((subcategory) => {
+				if (modifiedSubcategories.has(subcategory.id)) {
+					subcategoryUpdates.push(subcategory);
+				}
 			});
+		});
 
-			if (categoryUpdates.length === 0 && subcategoryUpdates.length === 0) {
-				alert.trigger("No changes to save!", "success");
-				return;
-			}
+		if (categoryUpdates.length === 0 && subcategoryUpdates.length === 0) {
+			alert.trigger("No changes to save!", "success");
+			return;
+		}
 
-			// Validation: Check for blank fields
-			const hasBlankCategoryField = categoryUpdates.some(
-				(cat) => !cat.name || cat.name.trim() === ""
+		// Validation: Check for blank fields
+		const hasBlankCategoryField = categoryUpdates.some(
+			(cat) => !cat.name || cat.name.trim() === ""
+		);
+		const hasBlankSubcategoryField = subcategoryUpdates.some(
+			(sub) =>
+				!sub.name ||
+				sub.name.trim() === "" ||
+				!sub.description ||
+				sub.description.trim() === ""
+		);
+
+		if (hasBlankCategoryField || hasBlankSubcategoryField) {
+			alert.trigger(
+				"One or more category or subcategory fields are blank.",
+				"error"
 			);
-			const hasBlankSubcategoryField = subcategoryUpdates.some(
-				(sub) =>
-					!sub.name ||
-					sub.name.trim() === "" ||
-					!sub.description ||
-					sub.description.trim() === ""
-			);
+			return;
+		}
 
-			if (hasBlankCategoryField || hasBlankSubcategoryField) {
-				alert.trigger(
-					"One or more category or subcategory fields are blank.",
-					"error"
-				);
-				return;
-			}
+		// Make API requests for each modified category
+		const categoryResponses = await Promise.all(
+			categoryUpdates.map((category: Category) =>
+				put("/api/category", category)
+			)
+		);
+		const allCategoriesUpdated = categoryResponses.every(
+			(response) => response !== null && response !== undefined
+		);
 
-			// Make API requests for each modified category
-			await Promise.all(
-				categoryUpdates.map((category: Category) =>
-					axios.put("/api/category", category)
-				)
-			);
+		const subcategoryResponses = await Promise.all(
+			subcategoryUpdates.map((subcategory: Subcategory) =>
+				put("/api/subcategory", subcategory)
+			)
+		);
+		const allSubcategoriesUpdated = subcategoryResponses.every(
+			(response) => response !== null && response !== undefined
+		);
 
-			await Promise.all(
-				subcategoryUpdates.map((subcategory: Subcategory) =>
-					axios.put("/api/subcategory", subcategory)
-				)
-			);
-
+		if (allCategoriesUpdated && allSubcategoriesUpdated) {
 			alert.trigger("Changes saved successfully!", "success");
-
 			// Clear modified state
 			setModifiedCategories(new Set());
 			setModifiedSubcategories(new Set());
-		} catch (error) {
-			console.log(error);
-			if (axios.isAxiosError(error)) {
-				const errResponse = error?.response?.data;
-				const apiError: Error = {
-					status_code: errResponse.status_code,
-					display_message: errResponse.display_message,
-					error_code: errResponse.error_code,
-					error_type: errResponse.error_type,
-				};
-				alert.trigger(
-					`Error saving changes: ${apiError.display_message}`,
-					"error"
-				);
-			} else {
-				alert.trigger(
-					"An unexpected error occurred while deleting the category.",
-					"error"
-				);
-			}
 		}
 	};
 
