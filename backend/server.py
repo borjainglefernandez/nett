@@ -32,7 +32,11 @@ from plaid.model.consumer_report_permissible_purpose import (
 )
 from plaid.api import plaid_api
 from flask_migrate import Migrate
+from sqlalchemy import func
 
+from models.budget.budget_utils import (
+    generate_budget_periods_for_budget,
+)
 from models.budget.budget import Budget, BudgetFrequency
 from utils.model_utils import (
     has_required_fields_for_model,
@@ -232,6 +236,7 @@ def create_budget():
     except Exception as e:
         return jsonify(create_formatted_error(400, str(e))), 400
 
+
 @app.route("/api/budget", methods=["PUT"])
 def update_budget():
     try:
@@ -244,7 +249,7 @@ def update_budget():
                         HTTPStatus.BAD_REQUEST.value,
                         required_fields_for_model_str(Budget),
                     )
-                ),  
+                ),
                 HTTPStatus.BAD_REQUEST.value,
             )
         budget_id = data["id"]
@@ -261,6 +266,7 @@ def update_budget():
 
     except Exception as e:
         return jsonify(create_formatted_error(400, str(e))), 400
+
 
 @app.route("/api/budget", methods=["GET"])
 def get_budgets():
@@ -893,22 +899,32 @@ def handle_modified_transactions(transactions: list):
 def handle_removed_transactions(transactions: list):
     pass
 
+
 # Budget Periods
 @app.route("/api/budget_period", methods=["GET"])
 def get_budget_period():
-    period_str = request.args.get("frequency", "").lower()
+    freq_str = request.args.get("frequency", "")
     try:
-        period_type = BudgetFrequency(period_str)
+        budget_freq = BudgetFrequency(freq_str)
     except ValueError:
-        return jsonify(create_formatted_error(400, f"Frequency {period_str} not supported")), 400
+        return (
+            jsonify(create_formatted_error(400, f"Frequency {freq_str} not supported")),
+            400,
+        )
 
-    budget_periods = []
-    if period_type == BudgetFrequency.WEEKLY:
-        pass
-        
+    # Get earliest transaction date
+    first_txn_date = db.session.query(func.min(Txn.date)).scalar()
+    if not first_txn_date:
+        return jsonify([])  # No transactions to build periods from
 
+    budgets = Budget.query.filter_by(frequency=budget_freq).all()
+    all_periods = []
 
-    return jsonify(budget_periods)
+    for budget in budgets:
+        periods = generate_budget_periods_for_budget(budget, first_txn_date)
+        all_periods.extend([p.to_dict() for p in periods])
+
+    return jsonify(all_periods)
 
 
 def pretty_print_response(response):

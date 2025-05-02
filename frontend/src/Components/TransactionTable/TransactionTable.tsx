@@ -188,7 +188,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					direction='row'
 					alignItems='center'
 					spacing={1}
-					sx={{ height: "100%", alignSelf: "center" }} 
+					sx={{ height: "100%", alignSelf: "center" }}
 				>
 					<Avatar
 						src={params.row.logo_url}
@@ -217,7 +217,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			flex: 1.5,
 			renderCell: (params: GridRenderCellParams) => (
 				<Select
-					value={params.formattedValue?.name || "OTHER"}
+					value={params.row.categoryObj.name}
 					onChange={(e) => handleCategoryChange(params.row.id, e.target.value)}
 					fullWidth
 				>
@@ -236,13 +236,13 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			flex: 1.5,
 			renderCell: (params: GridRenderCellParams) => (
 				<Select
-					value={params.formattedValue?.name || ""}
+					value={params.row.subcategoryObj?.name ?? ""}
 					onChange={(e) =>
 						handleSubcategoryChange(params.row.id, e.target.value)
 					}
 					fullWidth
 				>
-					{(categoryMap[params.row.category.name] || []).map((sub) => (
+					{(categoryMap[params.row.categoryObj.name] || []).map((sub) => (
 						<MenuItem key={sub.name} value={sub.name}>
 							{sub.name}
 						</MenuItem>
@@ -272,8 +272,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				id: transaction.id,
 				name: transaction.name,
 				amount: transaction.amount,
-				category: transaction.category,
-				subcategory: transaction.subcategory,
+				categoryObj: transaction.category,
+				subcategoryObj: transaction.subcategory,
+				category: transaction.category.name, // for filtering/sorting
+				subcategory: transaction.subcategory?.name ?? "", // for filtering/sorting
 				date: transaction.date,
 				accountName: transaction.account_name,
 				logo_url: transaction.logo_url, // <-- add this
