@@ -195,7 +195,8 @@ def create_link_token():
 
 @app.route("/api/set_access_token", methods=["POST"])
 def get_access_token():
-    public_token = request.form["public_token"]
+    data = request.get_json()
+    public_token = data["public_token"]
     try:
         exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
         exchange_response = client.item_public_token_exchange(exchange_request)
@@ -631,7 +632,8 @@ def delete_subcategory(subcategory_id):
 
 @app.route("/api/item", methods=["POST"])
 def create_item():
-    access_token = request.form["access_token"]
+    data = request.get_json()
+    access_token = data["access_token"]
     try:
         get_item_request = ItemGetRequest(access_token=access_token)
         response = client.item_get(get_item_request)

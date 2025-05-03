@@ -9,23 +9,21 @@ import TransactionTable from "../Components/TransactionTable/TransactionTable";
 import AccountList from "../Components/AccountsList/AccountList";
 import capitalizeWords from "../Utils/StringUtils";
 import { Item } from "../Models/Item";
+import useAppAlert from "../hooks/appAlert";
+import useApiService from "../hooks/apiService";
+import AppAlert from "../Components/Alerts/AppAlert";
 
 const Main = () => {
 	// Hooks
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [selectedAccounts, setSelectedAccounts] = useState<Account[]>([]);
 	const [transactions, setTransactions] = useState<Transaction[]>([]);
-	const { dispatch } = useContext(Context);
+	const { accountsNeedRefresh, dispatch } = useContext(Context);
+	const alert = useAppAlert();
+	const { get, post } = useApiService(alert);
 
 	const generateToken = useCallback(async () => {
-		const response = await fetch("/api/create_link_token", {
-			method: "POST",
-		});
-		if (!response.ok) {
-			dispatch({ type: "SET_STATE", state: { linkToken: null } });
-			return;
-		}
-		const data = await response.json();
+		const data = await post("/api/create_link_token", {});
 		// Data will look like this:
 		// 'expiration': str
 		// 'link_token': str
@@ -43,46 +41,34 @@ const Main = () => {
 				return;
 			}
 			dispatch({ type: "SET_STATE", state: { linkToken: data.link_token } });
+		} else {
+			dispatch({ type: "SET_STATE", state: { linkToken: null } });
+			return;
 		}
 		// Save the link_token to be used later in the Oauth flow.
 		localStorage.setItem("link_token", data.link_token);
 	}, [dispatch]);
 
 	const syncTransactions = useCallback(async () => {
-		const itemResponse = await fetch("/api/item", { method: "GET" });
-		if (!itemResponse.ok) {
-			console.error(itemResponse);
-		}
-		const data = await itemResponse.json();
-		const fetchedItems: Item[] = data.map((item: any) => ({
+		const itemData = await get("/api/item");
+		const fetchedItems: Item[] = itemData.map((item: any) => ({
 			...item,
 		}));
 
 		await Promise.all(
 			fetchedItems.map(async (item) => {
-				const getItemTransactionsResponse = await fetch(
-					"/api/item/" + item.id + "/sync",
-					{
-						method: "POST",
-						headers: {
-							"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-						},
-					}
-				);
-				const transactionData = await getItemTransactionsResponse.json();
+				const itemSyncData = await post("/api/item/" + item.id + "/sync", {});
+				if (itemSyncData) {
+					alert.trigger(`Item synced`, "success");
+				}
 			})
 		);
 	}, []);
 
 	const getAccounts = useCallback(async () => {
-		const response = await fetch("/api/account", { method: "GET" });
-		if (!response.ok) {
-			console.error(response);
-		}
-		const data = await response.json();
-
-		if (data) {
-			const fetchedAccounts: Account[] = data.map((item: any) => ({
+		const accountData = await get("/api/account");
+		if (accountData) {
+			const fetchedAccounts: Account[] = accountData.map((item: any) => ({
 				...item,
 				account_type: capitalizeWords(item.account_type),
 				account_subtype: capitalizeWords(item.account_subtype),
@@ -97,33 +83,21 @@ const Main = () => {
 		const allTransactions: Transaction[] = [];
 		await Promise.all(
 			selectedAccounts.map(async (account) => {
-				try {
-					const response = await fetch(
-						`/api/account/${account.id}/transactions`
-					);
-					if (!response.ok) {
-						throw new Error(
-							`Failed to fetch transactions for account ${account.id}`
-						);
-					}
-					const data = await response.json();
+				const transactionData = await get(
+					`/api/account/${account.id}/transactions`
+				);
 
-					// Convert response to Transaction model
-					const transactionsForAccount: Transaction[] = data.map(
-						(transaction: any) => ({
-							...transaction,
-							amount: Number(transaction.amount), // Ensure amount is a number
-							date: transaction.date ? new Date(transaction.date) : null, // Convert date
-							date_time: transaction.date
-								? new Date(transaction.dateTime)
-								: null, // Convert date
-							account_name: account.name,
-						})
-					);
-					allTransactions.push(...transactionsForAccount);
-				} catch (error) {
-					console.error(error);
-				}
+				// Convert response to Transaction model
+				const transactionsForAccount: Transaction[] = transactionData.map(
+					(transaction: any) => ({
+						...transaction,
+						amount: Number(transaction.amount), // Ensure amount is a number
+						date: transaction.date ? new Date(transaction.date) : null, // Convert date
+						date_time: transaction.date ? new Date(transaction.dateTime) : null, // Convert date
+						account_name: account.name,
+					})
+				);
+				allTransactions.push(...transactionsForAccount);
 			})
 		);
 		setTransactions(allTransactions); // Update state after all requests complete
@@ -145,13 +119,25 @@ const Main = () => {
 			generateToken();
 			syncTransactions();
 			getAccounts();
+			getTransactions();
+			dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
+
+			console.log("Main page loaded");
 		};
 		init();
-	}, [dispatch, generateToken, getAccounts]);
+	}, [accountsNeedRefresh, dispatch, generateToken, getAccounts]);
 
 	useEffect(() => {
 		getTransactions();
 	}, [selectedAccounts]);
+
+	// useEffect(() => {
+	// 	if (state.accountsNeedRefresh) {
+	// 		getAccounts();
+	// 		getTransactions(); // If needed
+	// 		dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
+	// 	}
+	// }, [state.accountsNeedRefresh]);
 
 	// Functions
 	const selectDeselectAccount = (account: Account, select: boolean) => {
@@ -182,6 +168,12 @@ const Main = () => {
 				<br></br>
 				<TransactionTable transactions={transactions} />
 			</div>
+			<AppAlert
+				open={alert.open}
+				message={alert.message}
+				severity={alert.severity}
+				onClose={alert.close}
+			/>
 		</div>
 	);
 };

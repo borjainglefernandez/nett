@@ -4,59 +4,32 @@ import { usePlaidLink } from "react-plaid-link";
 
 import Context from "../../Context";
 import Button from "@mui/material/Button";
+import useAppAlert from "../../hooks/appAlert";
+import useApiService from "../../hooks/apiService";
 
 const Link = () => {
 	const { linkToken, dispatch } = useContext(Context);
+	const alert = useAppAlert();
+	const { post } = useApiService(alert);
 
 	const onSuccess = React.useCallback(
 		(public_token: string) => {
 			// If the access_token is needed, send public_token to server
 			const exchangePublicTokenForAccessToken = async () => {
-				const response = await fetch("/api/set_access_token", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-					},
-					body: `public_token=${public_token}`,
+				const accessTokenData = await post("/api/set_access_token", {
+					public_token: public_token,
 				});
-				if (!response.ok) {
-					console.log("ERROR");
-					dispatch({
-						type: "SET_STATE",
-						state: {},
-					});
-					return;
-				}
-				const data = await response.json();
-				const createItemReponse = await fetch("/api/item", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-					},
-					body: `access_token=${data.access_token}`,
+				const itemData = await post("/api/item", {
+					access_token: accessTokenData.access_token,
 				});
-				const accountData = await createItemReponse.json();
-				console.log(accountData);
-				const getItemTransactionsResponse = await fetch(
-					"/api/item/" + data.item_id + "/sync",
-					{
-						method: "POST",
-						headers: {
-							"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-						},
-					}
-				);
-				const transactionData = await getItemTransactionsResponse.json();
-				console.log(transactionData);
-
+				// Sync transactions
+				await post("/api/item/" + itemData.item_id + "/sync", {});
 				dispatch({
-					type: "SET_STATE",
-					state: {},
+					type: "TRIGGER_ACCOUNT_REFRESH",
 				});
 			};
 
 			exchangePublicTokenForAccessToken();
-
 			window.history.pushState("", "", "/");
 		},
 		[dispatch]
