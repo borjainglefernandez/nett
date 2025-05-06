@@ -10,7 +10,7 @@ from models.transaction.payment_channel import PaymentChannel
 class Txn(db.Model):
     __tablename__ = "txn"
 
-    id = db.Column(db.String(120), primary_key=True)
+    id = db.Column(db.String(120), primary_key=True, unique=True)
     name = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     date = db.Column(db.DateTime, nullable=True)

@@ -764,7 +764,6 @@ def sync_item_transactions(item_id: str):
                 cursor=cursor,
             )
             response = client.transactions_sync(request).to_dict()
-            pretty_print_response(response)
 
             # Add this page of results
             added.extend(response["added"])
@@ -792,11 +791,13 @@ def sync_item_transactions(item_id: str):
 
     except plaid.ApiException as e:
         error_response = format_error(e)
+        print(error_response)
         return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
     except IntegrityError as e:
         db.session.rollback()
         error_response = create_formatted_error(500, str(e))
+        print(error_response)
         return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
 
     except Exception as e:
@@ -817,6 +818,7 @@ def handle_added_transactions(transactions: list):
         existing_txn = Txn.query.filter_by(
             id=transaction["transaction_id"]
         ).one_or_none()
+
         if existing_txn:
             print(
                 f"Transaction {transaction['transaction_id']} already exists, skipping."
@@ -887,10 +889,16 @@ def handle_added_transactions(transactions: list):
             channel=payment_channel,
             account_id=account.id,
         )
-        db.session.add(new_txn)
+        try:
+            db.session.add(new_txn)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            print(
+                f"Duplicate transaction {transaction['transaction_id']} already exists, skipping."
+            )
 
     print("Committing all new transactions to the database...")
-    db.session.commit()
     print("Done.")
 
 

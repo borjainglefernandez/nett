@@ -55,14 +55,18 @@ const Main = () => {
 			...item,
 		}));
 
-		await Promise.all(
-			fetchedItems.map(async (item) => {
-				const itemSyncData = await post("/api/item/" + item.id + "/sync", {});
-				if (itemSyncData) {
-					alert.trigger(`Item synced`, "success");
-				}
-			})
+		const itemSyncResponses = await Promise.all(
+			fetchedItems.map(async (item) =>
+				post("/api/item/" + item.id + "/sync", {})
+			)
 		);
+		const allItemsSynced = itemSyncResponses.every(
+			(response) => response !== null && response !== undefined
+		);
+
+		if (allItemsSynced && itemSyncResponses.length > 0) {
+			alert.trigger("Sync successful", "success");
+		}
 	}, []);
 
 	const getAccounts = useCallback(async () => {
@@ -74,6 +78,7 @@ const Main = () => {
 				account_subtype: capitalizeWords(item.account_subtype),
 				last_updated: new Date(item.last_updated),
 			}));
+			console.log("Fetched accounts:", fetchedAccounts);
 			setAccounts(fetchedAccounts);
 			setSelectedAccounts(fetchedAccounts);
 		}
@@ -116,10 +121,10 @@ const Main = () => {
 				});
 				return;
 			}
-			generateToken();
-			syncTransactions();
-			getAccounts();
-			getTransactions();
+			await generateToken();
+			await syncTransactions();
+			await getAccounts();
+			await getTransactions();
 			dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
 
 			console.log("Main page loaded");

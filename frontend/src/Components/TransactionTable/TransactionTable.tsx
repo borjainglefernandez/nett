@@ -145,23 +145,32 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const handleDelete = async () => {
 		try {
 			if (deleteTargetId) {
-				await del(`/api/transaction/${deleteTargetId}`);
-				setLocalTransactions((prev) =>
-					prev.filter((txn) => txn.id !== deleteTargetId)
+				const deleteTransactionResponse = await del(
+					`/api/transaction/${deleteTargetId}`
 				);
-				alert.trigger(`Transaction ${deleteTargetId} deleted`, "success");
+				if (deleteTransactionResponse) {
+					setLocalTransactions((prev) =>
+						prev.filter((txn) => txn.id !== deleteTargetId)
+					);
+					alert.trigger(`Transaction ${deleteTargetId} deleted`, "success");
+				}
 			} else {
-				await Promise.all(
+				const deleteTransactionResponses = await Promise.all(
 					selectionModel.map((id) => del(`/api/transaction/${id}`))
 				);
-				setLocalTransactions((prev) =>
-					prev.filter((txn) => !selectionModel.includes(txn.id))
+				const allTransactionsDeleted = deleteTransactionResponses.every(
+					(response) => response !== null && response !== undefined
 				);
-				alert.trigger(
-					`${selectionModel.length} transaction(s) deleted`,
-					"success"
-				);
-				setSelectionModel([]);
+				if (allTransactionsDeleted) {
+					setLocalTransactions((prev) =>
+						prev.filter((txn) => !selectionModel.includes(txn.id))
+					);
+					alert.trigger(
+						`${selectionModel.length} transaction(s) deleted`,
+						"success"
+					);
+					setSelectionModel([]);
+				}
 			}
 		} catch (error) {
 			alert.trigger("Failed to delete transaction(s)", "error");
