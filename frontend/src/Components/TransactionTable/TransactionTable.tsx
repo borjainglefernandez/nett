@@ -83,7 +83,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			);
 			setLocalTransactions(updatedTxns);
 
-			const response = await put(`/api/transaction/${id}`, { id, ...updates });
+			const response = await put(`/api/transaction`, { id, ...updates });
 
 			if (response) {
 				alert.trigger(successMsg, "success");

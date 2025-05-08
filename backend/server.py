@@ -58,12 +58,19 @@ from models.item.item import Item
 from models.account.account_type import AccountType
 from models.institution.institution import Institution
 from sqlalchemy.exc import IntegrityError
-
+from routes.item_routes import item_bp
+from routes.account_routes import account_bp
+from routes.budget_routes import budget_bp
+from routes.transaction_routes import transaction_bp
 
 load_dotenv()
 
 
 app = Flask(__name__)
+app.register_blueprint(item_bp)
+app.register_blueprint(account_bp)
+app.register_blueprint(budget_bp)
+app.register_blueprint(transaction_bp)
 
 PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
 PLAID_SECRET = os.getenv("PLAID_SECRET")
@@ -89,13 +96,11 @@ def empty_to_none(field):
     return value
 
 
-host = plaid.Environment.Sandbox
+host = {
+    "sandbox": plaid.Environment.Sandbox,
+    "production": plaid.Environment.Production,
+}.get(PLAID_ENV, plaid.Environment.Sandbox)
 
-if PLAID_ENV == "sandbox":
-    host = plaid.Environment.Sandbox
-
-if PLAID_ENV == "production":
-    host = plaid.Environment.Production
 
 # Parameters used for the OAuth redirect Link flow.
 #
@@ -117,6 +122,7 @@ configuration = plaid.Configuration(
 
 api_client = plaid.ApiClient(configuration)
 client = plaid_api.PlaidApi(api_client)
+app.config["plaid_client"] = client
 
 products = []
 for product in PLAID_PRODUCTS:
@@ -130,10 +136,6 @@ access_token = None
 # We store the payment_id in memory - in production, store it in a secure
 # persistent data store.
 payment_id = None
-# The transfer_id is only relevant for Transfer ACH product.
-# We store the transfer_id in memory - in production, store it in a secure
-# persistent data store.
-transfer_id = None
 # We store the user_token in memory - in production, store it in a secure
 # persistent data store.
 user_token = None
@@ -203,184 +205,6 @@ def get_access_token():
         return jsonify(exchange_response.to_dict())
     except plaid.ApiException as e:
         return json.loads(e.body), HTTPStatus.INTERNAL_SERVER_ERROR.value
-
-
-# Accounts
-
-
-@app.route("/api/account", methods=["GET"])
-def get_accounts():
-    all_accounts = Account.query.all()
-    return jsonify([account.to_dict() for account in all_accounts])
-
-
-# Budgets
-@app.route("/api/budget", methods=["POST"])
-def create_budget():
-    try:
-        data = request.get_json()
-        data.pop("id", None)  # Remove id if it exists
-        if not has_required_fields_for_model(data, Budget):
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.BAD_REQUEST.value,
-                        required_fields_for_model_str(Budget),
-                    )
-                ),
-                HTTPStatus.BAD_REQUEST.value,
-            )
-        create_model_instance_from_dict(Budget, data, db.session)
-        db.session.commit()
-        return jsonify({}), 200
-
-    except Exception as e:
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-@app.route("/api/budget", methods=["PUT"])
-def update_budget():
-    try:
-
-        data = request.get_json()
-        if not has_required_fields_for_model(data, Budget):
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.BAD_REQUEST.value,
-                        required_fields_for_model_str(Budget),
-                    )
-                ),
-                HTTPStatus.BAD_REQUEST.value,
-            )
-        budget_id = data["id"]
-        budget = db.session.get(Budget, budget_id)
-        if not budget:
-            return jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND, f"Budget {budget_id} not found."
-                )
-            )
-        update_model_instance_from_dict(budget, data, db.session)
-        db.session.commit()
-        return jsonify({}), 200
-
-    except Exception as e:
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-@app.route("/api/budget", methods=["GET"])
-def get_budgets():
-    budgets = Budget.query.all()
-    return jsonify([budget.to_dict() for budget in budgets])
-
-
-@app.route("/api/budget/<string:budget_id>", methods=["DELETE"])
-def delete_budget(budget_id: str):
-    try:
-        # Retrieve the transaction using the txn_id
-        budget = db.session.get(Budget, budget_id)
-
-        # If the transaction is not found, return a 404 error
-        if not budget:
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.NOT_FOUND, f"Budget {budget} not found."
-                    )
-                ),
-                HTTPStatus.NOT_FOUND.value,
-            )
-
-        # Delete the transaction from the database
-        db.session.delete(budget)
-        db.session.commit()
-
-        # Return a success response
-        return jsonify({"message": f"Budget {budget_id} deleted successfully."}), 200
-
-    except Exception as e:
-        # If there is any error during the deletion process, return a 400 error
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-# Transactions
-
-
-@app.route("/api/transaction/<string:txn_id>", methods=["PUT"])
-def update_transaction(txn_id: str):
-    try:
-        data = request.get_json()
-
-        if not has_required_fields_for_model(data, Txn):
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.BAD_REQUEST.value, required_fields_for_model_str(Txn)
-                    )
-                ),
-                HTTPStatus.BAD_REQUEST.value,
-            )
-
-        txn_id = data["id"]
-        txn = db.session.get(Txn, txn_id)
-        if not txn:
-            return jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND, f"Transaction {txn_id} not found."
-                )
-            )
-        update_model_instance_from_dict(txn, data, db.session)
-        db.session.commit()
-        return jsonify({}), 200
-
-    except Exception as e:
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-@app.route("/api/transaction/<string:txn_id>", methods=["DELETE"])
-def delete_transaction(txn_id: str):
-    try:
-        # Retrieve the transaction using the txn_id
-        txn = db.session.get(Txn, txn_id)
-
-        # If the transaction is not found, return a 404 error
-        if not txn:
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.NOT_FOUND, f"Transaction {txn_id} not found."
-                    )
-                ),
-                HTTPStatus.NOT_FOUND.value,
-            )
-
-        # Delete the transaction from the database
-        db.session.delete(txn)
-        db.session.commit()
-
-        # Return a success response
-        return jsonify({"message": f"Transaction {txn_id} deleted successfully."}), 200
-
-    except Exception as e:
-        # If there is any error during the deletion process, return a 400 error
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-@app.route("/api/account/<account_id>/transactions", methods=["GET"])
-def get_transactions(account_id):
-    account = Account.query.filter_by(id=account_id).one_or_none()
-    if not account:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND.value,
-                    f"Could not find account with id {item_id}.",
-                )
-            ),
-            HTTPStatus.NOT_FOUND.value,
-        )
-    return jsonify(account.get_transactions())
 
 
 # Transaction Categories
@@ -625,118 +449,6 @@ def delete_subcategory(subcategory_id):
     db.session.delete(subcategory)
     db.session.commit()
     return jsonify({"message": "Subcategory deleted successfully"}), HTTPStatus.OK.value
-
-
-# Items
-
-
-@app.route("/api/item", methods=["POST"])
-def create_item():
-    data = request.get_json()
-    access_token = data["access_token"]
-    try:
-        get_item_request = ItemGetRequest(access_token=access_token)
-        response = client.item_get(get_item_request)
-        item = response["item"]
-
-        item_id = item["item_id"]
-        institution_id = item["institution_id"]
-        institution_name = item["institution_name"]
-
-        # TODO: figure out logic to not add multiple of the same account
-
-        # Create item
-        item = Item(
-            id=item_id, access_token=access_token, institution_id=institution_id
-        )
-        db.session.add(item)
-        db.session.commit()
-
-        # See if institution exists
-        institution = Institution.query.filter_by(id=institution_id).one_or_none()
-        if not institution:  # If not create one
-            create_institution(institution_name, institution_id)
-
-        # Add new accounts
-        accounts = add_accounts_from_item(access_token, item_id, institution_id)
-        return jsonify([account.to_dict() for account in accounts])
-
-    except plaid.ApiException as e:
-        error_response = format_error(e)
-        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
-
-    except IntegrityError as e:
-        db.session.rollback()
-        error_response = create_formatted_error(500, str(e))
-        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
-
-    except Exception as e:
-        db.session.rollback()
-        error_response = create_formatted_error(500, str(e))
-        return jsonify(error_response), HTTPStatus.INTERNAL_SERVER_ERROR.value
-
-
-@app.route("/api/item", methods=["GET"])
-def get_items():
-    items = Item.query.all()
-    return jsonify([item.to_dict() for item in items])
-
-
-def create_institution(name: str, institution_id: str):
-    institution = Institution(id=institution_id, name=name)
-    db.session.add(institution)
-    db.session.commit()
-
-
-def add_accounts_from_item(access_token: str, item_id: str, institution_id: str):
-    request = AccountsBalanceGetRequest(access_token=access_token)
-    response = client.accounts_balance_get(request)
-    accounts = response["accounts"]
-    new_accounts = []
-
-    for account in accounts:
-        existing_account = Account.query.filter_by(
-            name=account.get("name")
-        ).one_or_none()
-        if existing_account:
-            error_response = create_formatted_error(
-                HTTPStatus.CONFLICT.value,
-                str(f"Account {existing_account.name} already exists."),
-            )
-            return jsonify(error_response), HTTPStatus.CONFLICT.value
-
-        balances = account["balances"]
-
-        # Get account type
-        try:
-            account_type_str = str(account.get("type"))
-            account_type = AccountType(account_type_str)
-        except ValueError:
-            account_type = AccountType.OTHER
-
-        # Get account subtype
-        try:
-            account_subtype_str = str(account.get("subtype"))
-            account_subtype = AccountSubtype(account_subtype_str)
-        except ValueError:
-            account_subtype = AccountSubtype.OTHER
-
-        new_account = Account(
-            id=(account.get("persistent_account_id") or account.get("account_id")),
-            name=account.get("name"),
-            balance=Decimal(balances.get("available") or 0.0),
-            limit=Decimal(balances.get("limit") or 0.0),
-            last_updated=datetime.now(),
-            institution_id=institution_id,
-            item_id=item_id,
-            account_type=account_type,
-            account_subtype=account_subtype,
-        )
-        new_accounts.append(new_account)
-        db.session.add(new_account)
-
-    db.session.commit()
-    return new_accounts
 
 
 @app.route("/api/item/<item_id>/sync", methods=["POST"])

@@ -78,7 +78,6 @@ const Main = () => {
 				account_subtype: capitalizeWords(item.account_subtype),
 				last_updated: new Date(item.last_updated),
 			}));
-			console.log("Fetched accounts:", fetchedAccounts);
 			setAccounts(fetchedAccounts);
 			setSelectedAccounts(fetchedAccounts);
 		}
@@ -127,7 +126,6 @@ const Main = () => {
 			await getTransactions();
 			dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
 
-			console.log("Main page loaded");
 		};
 		init();
 	}, [accountsNeedRefresh, dispatch, generateToken, getAccounts]);
