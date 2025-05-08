@@ -29,7 +29,7 @@ def seed_transaction_categories():
                 subcategory = TxnSubcategory(
                     name=detailed,
                     description=description,
-                    category=category,
+                    category_id=category.id,
                 )
                 db.session.add(subcategory)
         db.session.commit()

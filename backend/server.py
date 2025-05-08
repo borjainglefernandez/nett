@@ -1,15 +1,13 @@
 # Read env vars from .env file
-from collections import defaultdict
-import csv
 from decimal import Decimal
 import os
 import json
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from http import HTTPStatus
 
 from dotenv import load_dotenv
-from flask import Blueprint, Flask, request, jsonify
+from flask import Flask, request, jsonify
 import plaid
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
@@ -19,8 +17,6 @@ from plaid.model.item_public_token_exchange_request import (
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
-from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
-from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.link_token_create_request_statements import (
     LinkTokenCreateRequestStatements,
 )
@@ -32,22 +28,9 @@ from plaid.model.consumer_report_permissible_purpose import (
 )
 from plaid.api import plaid_api
 from flask_migrate import Migrate
-from sqlalchemy import func
-
-from models.budget.budget_utils import (
-    generate_budget_periods_for_budget,
-)
-from models.budget.budget import Budget, BudgetFrequency
-from utils.model_utils import (
-    has_required_fields_for_model,
-    required_fields_for_model_str,
-    update_model_instance_from_dict,
-    create_model_instance_from_dict,
-)
 from models.transaction.txn_category import TxnCategory
 from models.transaction.txn_subcategory import TxnSubcategory
 from models import db
-from models.account.account_subtype import AccountSubtype
 from models.transaction.txn import Txn
 from models.transaction.transaction_categories import (
     seed_transaction_categories,
@@ -55,13 +38,14 @@ from models.transaction.transaction_categories import (
 from models.transaction.payment_channel import PaymentChannel
 from models.account.account import Account
 from models.item.item import Item
-from models.account.account_type import AccountType
-from models.institution.institution import Institution
 from sqlalchemy.exc import IntegrityError
 from routes.item_routes import item_bp
 from routes.account_routes import account_bp
 from routes.budget_routes import budget_bp
-from routes.transaction_routes import transaction_bp
+from routes.budget_period_routes import budget_period_routes
+from routes.txn_routes import txn_bp
+from routes.txn_category_routes import txn_category_bp
+from routes.txn_subcategory_routes import txn_subcategory_bp
 
 load_dotenv()
 
@@ -70,7 +54,10 @@ app = Flask(__name__)
 app.register_blueprint(item_bp)
 app.register_blueprint(account_bp)
 app.register_blueprint(budget_bp)
-app.register_blueprint(transaction_bp)
+app.register_blueprint(txn_bp)
+app.register_blueprint(txn_category_bp)
+app.register_blueprint(txn_subcategory_bp)
+app.register_blueprint(budget_period_routes)
 
 PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
 PLAID_SECRET = os.getenv("PLAID_SECRET")
@@ -205,250 +192,6 @@ def get_access_token():
         return jsonify(exchange_response.to_dict())
     except plaid.ApiException as e:
         return json.loads(e.body), HTTPStatus.INTERNAL_SERVER_ERROR.value
-
-
-# Transaction Categories
-
-
-@app.route("/api/transaction/categories", methods=["GET"])
-def get_categories():
-    categories = TxnCategory.query.all()
-    return jsonify([category.to_dict() for category in categories])
-
-
-@app.route("/api/category", methods=["POST"])
-def create_category():
-    try:
-        data = request.get_json()
-        data.pop("id", None)  # Remove id if it exists
-        if not has_required_fields_for_model(data, TxnCategory):
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.BAD_REQUEST.value,
-                        required_fields_for_model_str(TxnCategory),
-                    )
-                ),
-                HTTPStatus.BAD_REQUEST.value,
-            )
-        category_name = data.get("name")
-        if db.session.query(TxnCategory).filter_by(name=category_name).first():
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.CONFLICT.value,
-                        f"Category '{category_name}' already exists.",
-                    )
-                ),
-                HTTPStatus.CONFLICT.value,
-            )
-        create_model_instance_from_dict(TxnCategory, data, db.session)
-        db.session.commit()
-        return jsonify({}), 200
-
-    except Exception as e:
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-@app.route("/api/category", methods=["PUT"])
-def create_update_category():
-    try:
-        data = request.get_json()
-        category_id = data.get("id")
-        name = data.get("name")
-
-        # Validate fields needed for put and post
-        if not name or (request.method == "PUT" and not category_id):
-            return (
-                jsonify(
-                    create_formatted_error(
-                        HTTPStatus.BAD_REQUEST.value,
-                        (
-                            "Name is required"
-                            if request.method == "POST"
-                            else "Id and name are required for update"
-                        ),
-                    )
-                ),
-                HTTPStatus.BAD_REQUEST.value,
-            )
-
-        # Validate not creating same category
-        if request.method == "POST":
-            if db.session.query(TxnCategory).filter_by(name=name).first():
-                return (
-                    jsonify(
-                        create_formatted_error(
-                            HTTPStatus.CONFLICT.value,
-                            f"Category '{name}' already exists.",
-                        )
-                    ),
-                    HTTPStatus.CONFLICT.value,
-                )
-
-        category = db.session.get(TxnCategory, category_id)
-        if category:
-            category.name = name
-        else:
-            category = TxnCategory(name=name)
-            db.session.add(category)
-
-        db.session.commit()
-        return jsonify(category.to_dict()), 200
-    except Exception as e:
-        return jsonify(create_formatted_error(400, str(e))), 400
-
-
-@app.route("/api/subcategory", methods=["POST", "PUT"])
-def create_update_subcategory():
-    data = request.get_json()
-    name = data.get("name")
-    subcategory_id = data.get("id") or name
-    description = data.get("description", "")
-    category_id = data.get("category_id")
-
-    if (
-        not name
-        or not description
-        or not category_id
-        or (request.method == "PUT" and not subcategory_id)
-    ):
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.BAD_REQUEST.value,
-                    (
-                        "Name, description, and category id are required"
-                        if request.method == "POST"
-                        else "Id, name, description, and category id are required for update"
-                    ),
-                )
-            ),
-            HTTPStatus.BAD_REQUEST.value,
-        )
-
-    category = db.session.get(TxnCategory, category_id)
-    if not category:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND.value, f"Category {category_id} not found"
-                )
-            ),
-            HTTPStatus.NOT_FOUND.value,
-        )
-
-    # Check for duplicates
-    existing_sub = (
-        db.session.query(TxnSubcategory)
-        .filter_by(name=name, category_id=category_id)
-        .first()
-    )
-    if existing_sub:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.CONFLICT.value,
-                    f"Subcategory '{name}' already exists in this category.",
-                )
-            ),
-            HTTPStatus.CONFLICT.value,
-        )
-
-    subcategory = db.session.get(TxnSubcategory, subcategory_id)
-    if subcategory:
-        subcategory.name = name
-        subcategory.description = description
-        subcategory.category = category
-    else:
-        subcategory = TxnSubcategory(
-            name=name, description=description, category=category
-        )
-        db.session.add(subcategory)
-
-    db.session.commit()
-    return jsonify(subcategory.to_dict())
-
-
-@app.route("/api/category/<string:category_id>", methods=["DELETE"])
-def delete_category(category_id):
-    category = db.session.query(TxnCategory).get(category_id)
-    if not category:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND.value, f"Category {category_id} not found"
-                )
-            ),
-            HTTPStatus.NOT_FOUND.value,
-        )
-
-    # Check if there are any transactions associated with the category
-    transactions = db.session.query(Txn).filter_by(category_id=category_id).all()
-    if transactions:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.BAD_REQUEST.value,
-                    "Cannot delete category with associated transactions.",
-                )
-            ),
-            HTTPStatus.BAD_REQUEST.value,
-        )
-
-    db.session.delete(category)
-    db.session.commit()
-    return (
-        jsonify({"message": "Category and its subcategories deleted successfully"}),
-        HTTPStatus.OK.value,
-    )
-
-
-@app.route("/api/subcategory/<string:subcategory_id>", methods=["GET"])
-def get_subcategory(subcategory_id):
-    subcategory = db.session.get(TxnSubcategory, subcategory_id)
-    if not subcategory:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND.value, "Subcategory not found"
-                )
-            ),
-            HTTPStatus.NOT_FOUND.value,
-        )
-
-    return jsonify(subcategory.to_dict()), HTTPStatus.OK.value
-
-
-@app.route("/api/subcategory/<string:subcategory_id>", methods=["DELETE"])
-def delete_subcategory(subcategory_id):
-    subcategory = TxnSubcategory.query.get(subcategory_id)
-    if not subcategory:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.NOT_FOUND.value, "Subcategory not found"
-                )
-            ),
-            HTTPStatus.NOT_FOUND.value,
-        )
-
-    # Check if there are any transactions associated with the subcategory
-    transactions = Txn.query.filter_by(subcategory_id=subcategory_id).all()
-    if transactions:
-        return (
-            jsonify(
-                create_formatted_error(
-                    HTTPStatus.BAD_REQUEST.value,
-                    "Cannot delete subcategory with associated transactions.",
-                )
-            ),
-            HTTPStatus.BAD_REQUEST.value,
-        )
-
-    db.session.delete(subcategory)
-    db.session.commit()
-    return jsonify({"message": "Subcategory deleted successfully"}), HTTPStatus.OK.value
 
 
 @app.route("/api/item/<item_id>/sync", methods=["POST"])
@@ -620,33 +363,6 @@ def handle_modified_transactions(transactions: list):
 
 def handle_removed_transactions(transactions: list):
     pass
-
-
-# Budget Periods
-@app.route("/api/budget_period", methods=["GET"])
-def get_budget_period():
-    freq_str = request.args.get("frequency", "")
-    try:
-        budget_freq = BudgetFrequency(freq_str)
-    except ValueError:
-        return (
-            jsonify(create_formatted_error(400, f"Frequency {freq_str} not supported")),
-            400,
-        )
-
-    # Get earliest transaction date
-    first_txn_date = db.session.query(func.min(Txn.date)).scalar()
-    if not first_txn_date:
-        return jsonify([])  # No transactions to build periods from
-
-    budgets = Budget.query.filter_by(frequency=budget_freq).all()
-    all_periods = []
-
-    for budget in budgets:
-        periods = generate_budget_periods_for_budget(budget, first_txn_date)
-        all_periods.extend([p.to_dict() for p in periods])
-
-    return jsonify(all_periods)
 
 
 def pretty_print_response(response):

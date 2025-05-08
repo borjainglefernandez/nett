@@ -8,6 +8,23 @@ from utils.model_utils import (
 )
 
 
+def get_model_request(model, model_id, session):
+    try:
+        model_instance = session.get(model, model_id)
+        print(model_instance.to_dict())
+        if not model_instance:
+            return error_response(
+                HTTPStatus.NOT_FOUND.value, f"{model.__name__} {model_id} not found."
+            )
+        return jsonify(model_instance.to_dict()), HTTPStatus.OK.value
+
+    except Exception as e:
+        return error_response(
+            HTTPStatus.INTERNAL_SERVER_ERROR.value,
+            str(e),
+        )
+
+
 def create_model_request(model, request, session):
     try:
         data = request.get_json()

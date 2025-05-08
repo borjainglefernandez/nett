@@ -16,20 +16,20 @@ from models.transaction.txn import Txn
 from models import db
 
 
-transaction_bp = Blueprint("transaction", __name__, url_prefix="/api/transaction")
+txn_bp = Blueprint("txn", __name__, url_prefix="/api/transaction")
 
 
-@transaction_bp.route("", methods=["POST"])
+@txn_bp.route("", methods=["POST"])
 def create_transaction():
     return create_model_request(Txn, request, db.session)
 
 
-@transaction_bp.route("", methods=["PUT"])
+@txn_bp.route("", methods=["PUT"])
 def update_transaction():
     return update_model_request(Txn, request, db.session)
 
 
-@transaction_bp.route("", methods=["GET"])
+@txn_bp.route("", methods=["GET"])
 def get_transactions():
     try:
         return jsonify(list_instances_of_model(Txn, db.session))
@@ -40,6 +40,6 @@ def get_transactions():
         )
 
 
-@transaction_bp.route("/<string:txn_id>", methods=["DELETE"])
+@txn_bp.route("/<string:txn_id>", methods=["DELETE"])
 def delete_transaction(txn_id: str):
     return delete_model_request(Txn, txn_id, db.session)

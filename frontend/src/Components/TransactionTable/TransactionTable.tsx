@@ -51,7 +51,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 	useEffect(() => {
 		const fetchCategories = async () => {
-			const data = await get("/api/transaction/categories");
+			const data = await get("/api/category");
 			if (data) {
 				setCategories(data);
 				const map = data.reduce(

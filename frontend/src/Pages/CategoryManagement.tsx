@@ -12,7 +12,6 @@ import {
 	DialogContent,
 	DialogTitle,
 } from "@mui/material";
-import { Error } from "../Models/Error";
 import { Category, Subcategory } from "../Models/Category";
 import CategoryCard from "../Components/CategoryManagement/CategoryCard";
 import AppAlert from "../Components/Alerts/AppAlert";
@@ -48,7 +47,7 @@ const CategoryManagement = () => {
 
 	useEffect(() => {
 		const fetchCategories = async () => {
-			const data = await get("/api/transaction/categories"); // Use the get method
+			const data = await get("/api/category"); // Use the get method
 			if (data) {
 				setCategories(data);
 			}
@@ -170,30 +169,37 @@ const CategoryManagement = () => {
 	const handleDeleteSubcategory = async () => {
 		if (!subcategoryToDelete) return;
 
-		// Check if the subcategory exists
-		const getData = await get(`/api/subcategory/${subcategoryToDelete.id}`);
+		// Only delete from API if it has a real ID
+		if (subcategoryToDelete.id) {
+			const getData = await get(`/api/subcategory/${subcategoryToDelete.id}`);
 
-		// If it exists, delete it
-		const delData = await del(`/api/subcategory/${subcategoryToDelete.id}`);
-
-		if (getData && delData) {
-			setCategories((prev) =>
-				prev.map((cat) =>
-					cat.id === subcategoryToDelete.category_id
-						? {
-								...cat,
-								subcategories: cat.subcategories.filter(
-									(sub) => sub.id !== subcategoryToDelete.id
-								),
-						  }
-						: cat
-				)
-			);
-			alert.trigger(
-				`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
-				"success"
-			);
+			if (getData) {
+				const delData = await del(`/api/subcategory/${subcategoryToDelete.id}`);
+				if (delData) {
+					alert.trigger(
+						`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
+						"success"
+					);
+				}
+			} else {
+				// Subcategory doesn't exist in backend
+				console.warn("Subcategory not found on server, skipping delete");
+			}
 		}
+
+		// Remove it from state regardless of server response
+		setCategories((prev) =>
+			prev.map((cat) =>
+				cat.id === subcategoryToDelete.category_id
+					? {
+							...cat,
+							subcategories: cat.subcategories.filter(
+								(sub) => sub.id !== subcategoryToDelete.id
+							),
+					  }
+					: cat
+			)
+		);
 
 		setOpenDialog(false);
 	};
@@ -243,22 +249,24 @@ const CategoryManagement = () => {
 				put("/api/category", category)
 			)
 		);
-		const allCategoriesUpdated = categoryResponses.every(
-			(response) => response !== null && response !== undefined
-		);
 
 		const subcategoryResponses = await Promise.all(
 			subcategoryUpdates.map((subcategory: Subcategory) =>
-				put("/api/subcategory", subcategory)
+				subcategory.id
+					? put("/api/subcategory", subcategory)
+					: post("/api/subcategory", subcategory)
 			)
 		);
+
+		const allCategoriesUpdated = categoryResponses.every(
+			(res) => res !== null && res !== undefined
+		);
 		const allSubcategoriesUpdated = subcategoryResponses.every(
-			(response) => response !== null && response !== undefined
+			(res) => res !== null && res !== undefined
 		);
 
 		if (allCategoriesUpdated && allSubcategoriesUpdated) {
 			alert.trigger("Changes saved successfully!", "success");
-			// Clear modified state
 			setModifiedCategories(new Set());
 			setModifiedSubcategories(new Set());
 		}
