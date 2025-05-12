@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from http import HTTPStatus
 from models.account.account import Account
 from models import db
+from utils.route_utils import safe_route
 from utils.model_utils import (
     list_instances_of_model,
 )
@@ -13,17 +14,13 @@ account_bp = Blueprint("account", __name__, url_prefix="/api/account")
 
 
 @account_bp.route("", methods=["GET"])
+@safe_route
 def get_accounts():
-    try:
-        return jsonify(list_instances_of_model(Account, db.session))
-    except Exception as e:
-        return error_response(
-            HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            str(e),
-        )
+    return jsonify(list_instances_of_model(Account, db.session))
 
 
 @account_bp.route("/<account_id>/transactions", methods=["GET"])
+@safe_route
 def get_transactions(account_id):
     account = Account.query.filter_by(id=account_id).one_or_none()
     if not account:

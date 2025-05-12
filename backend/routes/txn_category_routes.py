@@ -3,8 +3,8 @@ from http import HTTPStatus
 
 from utils.route_utils import (
     create_model_request,
-    delete_model_request,
     update_model_request,
+    safe_route,
 )
 from utils.error_utils import (
     error_response,
@@ -21,16 +21,19 @@ txn_category_bp = Blueprint("txn_category", __name__, url_prefix="/api/category"
 
 
 @txn_category_bp.route("", methods=["POST"])
+@safe_route
 def create_category():
     return create_model_request(TxnCategory, request, db.session)
 
 
 @txn_category_bp.route("", methods=["PUT"])
+@safe_route
 def update_category():
     return update_model_request(TxnCategory, request, db.session)
 
 
 @txn_category_bp.route("/<string:category_id>", methods=["DELETE"])
+@safe_route
 def delete_category(category_id: str):
     category = db.session.query(TxnCategory).get(category_id)
     if not category:
@@ -55,11 +58,6 @@ def delete_category(category_id: str):
 
 
 @txn_category_bp.route("", methods=["GET"])
+@safe_route
 def get_categories():
-    try:
-        return jsonify(list_instances_of_model(TxnCategory, db.session))
-    except Exception as e:
-        return error_response(
-            HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            str(e),
-        )
+    return jsonify(list_instances_of_model(TxnCategory, db.session))

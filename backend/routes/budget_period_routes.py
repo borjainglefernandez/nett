@@ -9,6 +9,7 @@ from models.budget.budget_utils import generate_budget_periods_for_budget
 from utils.error_utils import (
     error_response,
 )
+from utils.route_utils import safe_route
 from models.transaction.txn import Txn
 from models import db
 
@@ -19,6 +20,7 @@ budget_period_routes = Blueprint(
 
 
 @budget_period_routes.route("", methods=["GET"])
+@safe_route
 def get_budget_period():
     freq_str = request.args.get("frequency", "")
     try:

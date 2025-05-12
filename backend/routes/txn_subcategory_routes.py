@@ -5,6 +5,7 @@ from utils.route_utils import (
     create_model_request,
     get_model_request,
     update_model_request,
+    safe_route,
 )
 from utils.error_utils import (
     error_response,
@@ -20,16 +21,19 @@ txn_subcategory_bp = Blueprint(
 
 
 @txn_subcategory_bp.route("", methods=["POST"])
+@safe_route
 def create_subcategory():
     return create_model_request(TxnSubcategory, request, db.session)
 
 
 @txn_subcategory_bp.route("", methods=["PUT"])
+@safe_route
 def update_subcategory():
     return update_model_request(TxnSubcategory, request, db.session)
 
 
 @txn_subcategory_bp.route("/<string:subcategory_id>", methods=["DELETE"])
+@safe_route
 def delete_subcategory(subcategory_id: str):
     subcategory = db.session.query(TxnSubcategory).get(subcategory_id)
     if not subcategory:
@@ -54,11 +58,6 @@ def delete_subcategory(subcategory_id: str):
 
 
 @txn_subcategory_bp.route("/<string:subcategory_id>", methods=["GET"])
+@safe_route
 def get_subcategory(subcategory_id: str):
-    try:
-        return get_model_request(TxnSubcategory, subcategory_id, db.session)
-    except Exception as e:
-        return error_response(
-            HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            str(e),
-        )
+    return get_model_request(TxnSubcategory, subcategory_id, db.session)
