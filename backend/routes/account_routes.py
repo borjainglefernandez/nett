@@ -16,7 +16,7 @@ account_bp = Blueprint("account", __name__, url_prefix="/api/account")
 @account_bp.route("", methods=["GET"])
 @safe_route
 def get_accounts():
-    return jsonify(list_instances_of_model(Account, db.session))
+    return jsonify(list_instances_of_model(Account))
 
 
 @account_bp.route("/<account_id>/transactions", methods=["GET"])

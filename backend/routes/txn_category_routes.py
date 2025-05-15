@@ -60,4 +60,4 @@ def delete_category(category_id: str):
 @txn_category_bp.route("", methods=["GET"])
 @safe_route
 def get_categories():
-    return jsonify(list_instances_of_model(TxnCategory, db.session))
+    return jsonify(list_instances_of_model(TxnCategory))

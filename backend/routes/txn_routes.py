@@ -31,7 +31,7 @@ def update_transaction():
 @txn_bp.route("", methods=["GET"])
 @safe_route
 def get_transactions():
-    return jsonify(list_instances_of_model(Txn, db.session))
+    return jsonify(list_instances_of_model(Txn))
 
 
 @txn_bp.route("/<string:txn_id>", methods=["DELETE"])

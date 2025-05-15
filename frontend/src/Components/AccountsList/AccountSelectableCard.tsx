@@ -14,11 +14,10 @@ import {
 	DialogContent,
 	Box,
 	Typography,
-	IconButtonProps,
 	Switch,
 } from "@mui/material";
 import Account from "../../Models/Account";
-import { Button, Checkbox } from "plaid-threads";
+import { Button } from "plaid-threads";
 import { useState } from "react";
 import formatDate from "../../Utils/DateUtils";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -29,6 +28,7 @@ import ClassTwoToneIcon from "@mui/icons-material/ClassTwoTone";
 
 interface AccountSelectableCard {
 	account: Account;
+	isSelected: boolean;
 	selectDeselectAccount: (account: Account, select: boolean) => void;
 }
 
@@ -44,6 +44,7 @@ const ExpandMore = styled(IconButton)<{ expand: boolean }>(
 
 const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	account,
+	isSelected,
 	selectDeselectAccount,
 }) => {
 	// 'Hooks
@@ -105,10 +106,9 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 							<Switch
 								id={account.id}
 								onChange={(e) => {
-									selectDeselectAccount(account, !selected);
-									setSelected(!selected);
+									selectDeselectAccount(account, !isSelected);
 								}}
-								checked={selected}
+								checked={isSelected}
 								size='small' // Making the select checkbox smaller
 							/>
 							<IconButton

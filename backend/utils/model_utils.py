@@ -2,6 +2,7 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from pprint import pformat
 from utils.logger import get_logger
+from models import db
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,9 @@ def required_fields_for_model_str(model):
     return f"Fields {', '.join(required_fields)} are required for {str(model)}"
 
 
-def create_model_instance_from_dict(model_class, data: dict, session):
+def create_model_instance_from_dict(
+    model_class, data: dict, fail_on_duplicate: bool = True
+):
     logger.info(f"📦 Creating instance of {model_class.__name__}")
     mapper = inspect(model_class)
     model_columns = {column.key for column in mapper.columns}
@@ -58,15 +61,21 @@ def create_model_instance_from_dict(model_class, data: dict, session):
         logger.info(
             f"🔍 Checking for existing {model_class.__name__} with {primary_key}={data[primary_key]}"
         )
-        existing = session.get(model_class, data[primary_key])
+        existing = db.session.get(model_class, data[primary_key])
         logger.debug(f"🔍 Existing instance: {existing}")
         if existing:
-            logger.error(
-                f"❌ Duplicate detected for {model_class.__name__} with {primary_key}={data[primary_key]}"
-            )
-            raise ValueError(
-                f"{model_class.__name__} with {primary_key}={data[primary_key]} already exists."
-            )
+            if fail_on_duplicate:
+                logger.error(
+                    f"❌ Duplicate detected for {model_class.__name__} with {primary_key}={data[primary_key]}"
+                )
+                raise ValueError(
+                    f"{model_class.__name__} with {primary_key}={data[primary_key]} already exists."
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Duplicate found for {model_class.__name__} with {primary_key}={data[primary_key]}. Returning existing instance."
+                )
+                return existing
 
     for key, value in data.items():
         if key in model_columns:
@@ -83,17 +92,13 @@ def create_model_instance_from_dict(model_class, data: dict, session):
 
         elif key in relationships:
             logger.debug(f"🔄 Resolving relationship: {key}")
-            if session is None:
-                raise ValueError(
-                    f"Cannot resolve relationship '{key}' without a session"
-                )
 
             if value is None:
                 init_kwargs[key] = None
             elif isinstance(value, dict):
                 related_model_class = relationships[key]
                 related_id = value.get("id")
-                related_instance = session.get(related_model_class, related_id)
+                related_instance = db.session.get(related_model_class, related_id)
                 if related_instance:
                     logger.debug(
                         f"✅ Found related {related_model_class.__name__} with id {related_id}"
@@ -111,13 +116,13 @@ def create_model_instance_from_dict(model_class, data: dict, session):
     logger.debug(f"🛠 Init kwargs for {model_class.__name__}:\n{pformat(init_kwargs)}")
 
     instance = model_class(**init_kwargs)
-    session.add(instance)
-    session.commit()
+    db.session.add(instance)
+    db.session.commit()
     logger.info(f"✅ {model_class.__name__} instance created and added to session.")
     return instance
 
 
-def update_model_instance_from_dict(instance, data: dict, session=None):
+def update_model_instance_from_dict(instance, data: dict):
     if instance is None:
         raise ValueError("Cannot update a non-existent instance (instance is None).")
 
@@ -141,15 +146,11 @@ def update_model_instance_from_dict(instance, data: dict, session=None):
             logger.debug(f"📝 Set {key} = {value}")
 
         elif key in relationships:
-            if session is None:
-                raise ValueError(
-                    f"Cannot resolve relationship '{key}' without a session"
-                )
             if value is None:
                 setattr(instance, key, None)
             elif isinstance(value, dict):
                 related_model_class = relationships[key]
-                related_instance = session.get(related_model_class, value.get("id"))
+                related_instance = db.session.get(related_model_class, value.get("id"))
                 if related_instance:
                     setattr(instance, key, related_instance)
                     logger.debug(
@@ -160,13 +161,13 @@ def update_model_instance_from_dict(instance, data: dict, session=None):
                         f"⚠️ Related {related_model_class.__name__} with id {value.get('id')} not found."
                     )
 
-    session.commit()
+    db.session.commit()
     logger.info(f"✅ {instance.__class__.__name__} instance updated.")
     return instance
 
 
-def list_instances_of_model(model_class, session):
+def list_instances_of_model(model_class):
     logger.info(f"📄 Listing all instances of {model_class.__name__}")
-    instances = session.query(model_class).all()
+    instances = db.session.query(model_class).all()
     logger.debug(f"Found {len(instances)} instances.")
     return [instance.to_dict() for instance in instances]

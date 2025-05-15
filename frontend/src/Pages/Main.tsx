@@ -1,5 +1,6 @@
 import { useEffect, useContext, useCallback, useState } from "react";
-
+import CircularProgress from "@mui/material/CircularProgress";
+import Tab from "@mui/material/Tab";
 import Header from "../Components/Headers";
 import Context from "../Context";
 import styles from "../App.module.scss";
@@ -12,9 +13,14 @@ import { Item } from "../Models/Item";
 import useAppAlert from "../hooks/appAlert";
 import useApiService from "../hooks/apiService";
 import AppAlert from "../Components/Alerts/AppAlert";
+import { Box, Tabs } from "@mui/material";
+import TabPanel from "../Components/TabPanel/TabPanel";
+import BudgetDashboard from "../Components/BudgetDashboard/BudgetDashboard";
 
 const Main = () => {
 	// Hooks
+	const [loading, setLoading] = useState<boolean>(true);
+	const [tabIndex, setTabIndex] = useState(0);
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [selectedAccounts, setSelectedAccounts] = useState<Account[]>([]);
 	const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -109,23 +115,27 @@ const Main = () => {
 
 	useEffect(() => {
 		const init = async () => {
-			// do not generate a new token for OAuth redirect; instead
-			// setLinkToken from localStorage
-			if (window.location.href.includes("?oauth_state_id=")) {
-				dispatch({
-					type: "SET_STATE",
-					state: {
-						linkToken: localStorage.getItem("link_token"),
-					},
-				});
-				return;
+			setLoading(true);
+			try {
+				if (window.location.href.includes("?oauth_state_id=")) {
+					dispatch({
+						type: "SET_STATE",
+						state: {
+							linkToken: localStorage.getItem("link_token"),
+						},
+					});
+					setLoading(false);
+					return;
+				}
+				await generateToken();
+				await syncTransactions();
+				await getAccounts();
+				await getTransactions();
+				dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
+			} catch (error) {
+				console.error("Error during init:", error);
 			}
-			await generateToken();
-			await syncTransactions();
-			await getAccounts();
-			await getTransactions();
-			dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
-
+			setLoading(false);
 		};
 		init();
 	}, [accountsNeedRefresh, dispatch, generateToken, getAccounts]);
@@ -133,14 +143,6 @@ const Main = () => {
 	useEffect(() => {
 		getTransactions();
 	}, [selectedAccounts]);
-
-	// useEffect(() => {
-	// 	if (state.accountsNeedRefresh) {
-	// 		getAccounts();
-	// 		getTransactions(); // If needed
-	// 		dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });
-	// 	}
-	// }, [state.accountsNeedRefresh]);
 
 	// Functions
 	const selectDeselectAccount = (account: Account, select: boolean) => {
@@ -161,16 +163,41 @@ const Main = () => {
 
 	return (
 		<div className={styles.App}>
-			<div className={styles.container}>
-				<Header />
-				<br></br>
-				<AccountList
-					accounts={accounts}
-					selectDeselectAccount={selectDeselectAccount}
-				/>
-				<br></br>
-				<TransactionTable transactions={transactions} />
-			</div>
+			{loading ? (
+				<div className={styles.loadingContainer}>
+					<CircularProgress />
+				</div>
+			) : (
+				<div className={styles.container}>
+					<Header />
+					<br />
+					<Box sx={{ width: "100%", mb: 2 }}>
+						<Tabs
+							value={tabIndex}
+							onChange={(e, value) => setTabIndex(value)}
+							sx={{ justifyContent: "flex-start", display: "flex" }} // This aligns tab buttons inside Tabs
+						>
+							<Tab label='Account List' />
+							<Tab label='Transaction Table' />
+							<Tab label='Budget Summary' />
+						</Tabs>
+					</Box>
+
+					<TabPanel value={tabIndex} index={0}>
+						<AccountList
+							accounts={accounts}
+							selectedAccounts={selectedAccounts}
+							selectDeselectAccount={selectDeselectAccount}
+						/>
+					</TabPanel>
+					<TabPanel value={tabIndex} index={1}>
+						<TransactionTable transactions={transactions} />
+					</TabPanel>
+					<TabPanel value={tabIndex} index={2}>
+						<BudgetDashboard />
+					</TabPanel>
+				</div>
+			)}
 			<AppAlert
 				open={alert.open}
 				message={alert.message}

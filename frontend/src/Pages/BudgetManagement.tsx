@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { MAIN_PAGE_ROUTE } from "../Constants/RouteConstants";
 import Budget, { BudgetFrequency } from "../Models/Budget";
 import AppAlert from "../Components/Alerts/AppAlert";
-import BudgetForm from "../Components/Budget/BudgetForm";
+import BudgetForm from "../Components/BudgetManagement/BudgetForm";
 
 const BudgetManagement = () => {
 	const alert = useAppAlert();

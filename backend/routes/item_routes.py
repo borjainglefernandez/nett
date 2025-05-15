@@ -67,7 +67,9 @@ def create_item():
 
     item_dict["access_token"] = access_token
     item_dict["id"] = item_dict["item_id"]
-    item = create_model_instance_from_dict(Item, item_dict, db.session)
+    item = create_model_instance_from_dict(
+        Item, item_dict, fail_on_duplicate=False
+    )
 
     # Create item's institution
     institution_dict = {
@@ -75,7 +77,7 @@ def create_item():
         "name": item_dict["institution_name"],
     }
     institution = create_model_instance_from_dict(
-        Institution, institution_dict, db.session
+        Institution, institution_dict, fail_on_duplicate=False
     )
 
     # Add item's accounts
@@ -100,7 +102,9 @@ def create_item():
             "account_type": str(plaid_account.get("type")),
             "account_subtype": str(plaid_account.get("subtype")),
         }
-        account = create_model_instance_from_dict(Account, account_dict, db.session)
+        account = create_model_instance_from_dict(
+            Account, account_dict, fail_on_duplicate=False
+        )
         accounts.append(account)
 
     return jsonify([account.to_dict() for account in accounts])
@@ -109,7 +113,7 @@ def create_item():
 @item_bp.route("", methods=["GET"])
 @safe_route
 def get_items():
-    return jsonify(list_instances_of_model(Item, db.session))
+    return jsonify(list_instances_of_model(Item))
 
 
 @item_bp.route("/<item_id>/sync", methods=["POST"])

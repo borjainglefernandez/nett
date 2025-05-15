@@ -23,22 +23,22 @@ budget_bp = Blueprint("budget", __name__, url_prefix="/api/budget")
 @budget_bp.route("", methods=["POST"])
 @safe_route
 def create_budget():
-    return create_model_request(Budget, request, db.session)
+    return create_model_request(Budget, request)
 
 
 @budget_bp.route("", methods=["PUT"])
 @safe_route
 def update_budget():
-    return update_model_request(Budget, request, db.session)
+    return update_model_request(Budget, request)
 
 
 @budget_bp.route("", methods=["GET"])
 @safe_route
 def get_budgets():
-    return jsonify(list_instances_of_model(Budget, db.session))
+    return jsonify(list_instances_of_model(Budget))
 
 
 @budget_bp.route("/<string:budget_id>", methods=["DELETE"])
 @safe_route
 def delete_budget(budget_id: str):
-    return delete_model_request(Budget, budget_id, db.session)
+    return delete_model_request(Budget, budget_id)

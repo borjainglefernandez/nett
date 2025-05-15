@@ -41,7 +41,7 @@ def get_model_request(model, model_id):
 def create_model_request(model, request):
     data = request.get_json()
     data.pop("id", None)
-    create_model_instance_from_dict(model, data, db.session)
+    create_model_instance_from_dict(model, data)
     return jsonify({}), HTTPStatus.OK.value
 
 
@@ -53,7 +53,7 @@ def update_model_request(model, request):
         return error_response(
             HTTPStatus.NOT_FOUND, f"{model.__name__} {model_id} not found."
         )
-    update_model_instance_from_dict(model_instance, data, db.session)
+    update_model_instance_from_dict(model_instance, data)
     return jsonify({}), HTTPStatus.OK.value
 
 

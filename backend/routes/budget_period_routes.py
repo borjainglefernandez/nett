@@ -1,13 +1,12 @@
 from flask import Blueprint, request, jsonify
-from http import HTTPStatus
 
 from sqlalchemy import func
 
+from models.period.period_utils import get_spent_amounts_by_frequency
 from models.budget.budget import Budget
 from models.budget.budget_frequency import BudgetFrequency
-from models.budget.budget_utils import generate_budget_periods_for_budget
-from utils.error_utils import (
-    error_response,
+from models.budget.budget_utils import (
+    generate_budget_periods_for_budget,
 )
 from utils.route_utils import safe_route
 from models.transaction.txn import Txn
@@ -19,16 +18,17 @@ budget_period_routes = Blueprint(
 )
 
 
+def parse_frequency(frequency_str):
+    try:
+        return BudgetFrequency(frequency_str)
+    except ValueError:
+        raise ValueError(f"Frequency {frequency_str} not supported")
+
+
 @budget_period_routes.route("", methods=["GET"])
 @safe_route
 def get_budget_period():
-    freq_str = request.args.get("frequency", "")
-    try:
-        budget_freq = BudgetFrequency(freq_str)
-    except ValueError:
-        return error_response(
-            HTTPStatus.BAD_REQUEST, f"Frequency {freq_str} not supported"
-        )
+    budget_freq = parse_frequency(request.args.get("frequency", ""))
 
     # Get earliest transaction date
     first_txn_date = db.session.query(func.min(Txn.date)).scalar()
@@ -43,3 +43,11 @@ def get_budget_period():
         all_periods.extend([p.to_dict() for p in periods])
 
     return jsonify(all_periods)
+
+
+@budget_period_routes.route("/total-spent", methods=["GET"])
+@safe_route
+def get_total_spent():
+    freq = parse_frequency(request.args.get("frequency", ""))
+    periods = get_spent_amounts_by_frequency(freq)
+    return jsonify([period.to_dict() for period in periods])
