@@ -24,7 +24,8 @@ const Main = () => {
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [selectedAccounts, setSelectedAccounts] = useState<Account[]>([]);
 	const [transactions, setTransactions] = useState<Transaction[]>([]);
-	const { accountsNeedRefresh, dispatch } = useContext(Context);
+	const { accountsNeedRefresh, redirectLoading, dispatch } =
+		useContext(Context);
 	const alert = useAppAlert();
 	const { get, post } = useApiService(alert);
 
@@ -57,9 +58,11 @@ const Main = () => {
 
 	const syncTransactions = useCallback(async () => {
 		const itemData = await get("/api/item");
-		const fetchedItems: Item[] = itemData.map((item: any) => ({
-			...item,
-		}));
+		const fetchedItems: Item[] = itemData
+			.map((item: any) => ({
+				...item,
+			}))
+			.filter((item: Item) => item && item.id);
 
 		const itemSyncResponses = await Promise.all(
 			fetchedItems.map(async (item) =>
@@ -114,6 +117,7 @@ const Main = () => {
 	}, [selectedAccounts]);
 
 	useEffect(() => {
+		console.log("Accounts need refresh:", accountsNeedRefresh);
 		const init = async () => {
 			setLoading(true);
 			try {
@@ -136,6 +140,7 @@ const Main = () => {
 				console.error("Error during init:", error);
 			}
 			setLoading(false);
+			dispatch({ type: "SET_REDIRECT_LOADING", payload: false });
 		};
 		init();
 	}, [accountsNeedRefresh, dispatch, generateToken, getAccounts]);
@@ -163,7 +168,7 @@ const Main = () => {
 
 	return (
 		<div className={styles.App}>
-			{loading ? (
+			{loading || redirectLoading ? (
 				<div className={styles.loadingContainer}>
 					<CircularProgress />
 				</div>

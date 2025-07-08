@@ -1,6 +1,5 @@
 import React, { useEffect, useContext } from "react";
 import { usePlaidLink } from "react-plaid-link";
-// import Button from "plaid-threads/Button";
 
 import Context from "../../Context";
 import Button from "@mui/material/Button";
@@ -19,18 +18,16 @@ const Link = () => {
 				const accessTokenData = await post("/api/set_access_token", {
 					public_token: public_token,
 				});
-				const itemData = await post("/api/item", {
+				await post("/api/item", {
 					access_token: accessTokenData.access_token,
 				});
 				// Sync transactions
-				await post("/api/item/" + itemData.item_id + "/sync", {});
 				dispatch({
 					type: "TRIGGER_ACCOUNT_REFRESH",
 				});
 			};
-
+			dispatch({ type: "SET_REDIRECT_LOADING", payload: true });
 			exchangePublicTokenForAccessToken();
-			window.history.pushState("", "", "/");
 		},
 		[dispatch]
 	);

@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 
 from sqlalchemy import func
 
-from models.period.period_utils import get_spent_amounts_by_frequency
+from models.period.period_utils import get_totals_by_frequency
 from models.budget.budget import Budget
 from models.budget.budget_frequency import BudgetFrequency
 from models.budget.budget_utils import (
@@ -45,9 +45,9 @@ def get_budget_period():
     return jsonify(all_periods)
 
 
-@budget_period_routes.route("/total-spent", methods=["GET"])
+@budget_period_routes.route("/total", methods=["GET"])
 @safe_route
-def get_total_spent():
+def get_total():
     freq = parse_frequency(request.args.get("frequency", ""))
-    periods = get_spent_amounts_by_frequency(freq)
+    periods = get_totals_by_frequency(freq)
     return jsonify([period.to_dict() for period in periods])

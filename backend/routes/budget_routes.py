@@ -7,9 +7,6 @@ from utils.route_utils import (
     update_model_request,
     safe_route,
 )
-from utils.error_utils import (
-    error_response,
-)
 from utils.model_utils import (
     list_instances_of_model,
 )

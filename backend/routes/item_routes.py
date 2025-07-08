@@ -90,10 +90,11 @@ def create_item():
     accounts = []
     for plaid_account in plaid_accounts:
         balances = plaid_account["balances"]
+        logger.debug(f"Processing account: {plaid_account}")
         account_dict = {
             "id": plaid_account.get("persistent_account_id")
             or plaid_account.get("account_id"),
-            "name": plaid_account.get("name"),
+            "name": plaid_account.get("official_name") + "-" + plaid_account.get("mask", ""),
             "balance": balances.get("available") or 0.0,
             "limit": balances.get("limit") or 0.0,
             "last_updated": datetime.now(),
@@ -115,7 +116,6 @@ def create_item():
 def get_items():
     return jsonify(list_instances_of_model(Item))
 
-
 @item_bp.route("/<item_id>/sync", methods=["POST"])
 @safe_route
 def sync_item_transactions(item_id: str):
@@ -127,44 +127,55 @@ def sync_item_transactions(item_id: str):
             f"Could not find item with id {item_id}.",
         )
 
-    cursor = item.cursor
-
-    # New transaction updates since "cursor"
+    plaid_client = current_app.config["plaid_client"]
+    retries = 3
+    delay_seconds = 2
+    attempt = 0
     added = []
     modified = []
-    removed = []  # Removed transaction ids
-    has_more = True
-    plaid_client = current_app.config["plaid_client"]
+    removed = []
+    cursor = item.cursor
 
-    # Iterate through each page of new transaction updates for item
-    while has_more:
-        request = TransactionsSyncRequest(
-            access_token=item.access_token,
-            cursor=cursor,
-        )
-        response = plaid_client.transactions_sync(request).to_dict()
+    while attempt < retries:
+        current_cursor = cursor
+        has_more = True
 
-        # Add this page of results
-        added.extend(response["added"])
-        modified.extend(response["modified"])
-        removed.extend(response["removed"])
+        while has_more:
+            request = TransactionsSyncRequest(
+                access_token=item.access_token,
+                cursor=current_cursor,
+            )
+            response = plaid_client.transactions_sync(request).to_dict()
 
-        has_more = response["has_more"]
+            added.extend(response["added"])
+            modified.extend(response["modified"])
+            removed.extend(response["removed"])
 
-        # Update cursor to the next cursor
-        cursor = response["next_cursor"]
+            has_more = response["has_more"]
+            current_cursor = response["next_cursor"]
 
-        if cursor == "":
-            time.sleep(2)
-            continue
+            if current_cursor == "":
+                time.sleep(delay_seconds)
+                continue
+
+        # Break retry loop if any transactions were found
+        if added or modified or removed:
+            cursor = current_cursor  # save the updated cursor
+            break
+
+        attempt += 1
+        logger.info(f"No transactions found. Retry attempt {attempt}...")
+        time.sleep(delay_seconds)
 
     handle_added_transactions(added)
     handle_modified_transactions(modified)
     handle_removed_transactions(removed)
 
-    # Update cursor to last one
-    item.cursor = cursor
-    db.session.commit()
+    # Update item cursor only if it changed
+    if cursor and cursor != item.cursor:
+        item.cursor = cursor
+        db.session.commit()
+
     accounts = Account.query.all()
     return jsonify([account.get_transactions() for account in accounts])
 
@@ -250,14 +261,13 @@ def handle_added_transactions(transactions: list):
         )
         try:
             db.session.add(new_txn)
+            db.session.commit()
         except IntegrityError:
             db.session.rollback()
             logger.warning(
                 f"Duplicate transaction {transaction['transaction_id']} already exists, skipping."
             )
 
-    logger.debug("Committing all new transactions to the database...")
-    db.session.commit()
     logger.info("All new transactions have been processed.")
 
 

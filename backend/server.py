@@ -1,6 +1,5 @@
 import os
 import time
-from datetime import date, timedelta
 from http import HTTPStatus
 
 from dotenv import load_dotenv
@@ -12,16 +11,8 @@ from plaid.model.item_public_token_exchange_request import (
     ItemPublicTokenExchangeRequest,
 )
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_transactions import LinkTokenTransactions
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.link_token_create_request_statements import (
-    LinkTokenCreateRequestStatements,
-)
-from plaid.model.link_token_create_request_cra_options import (
-    LinkTokenCreateRequestCraOptions,
-)
-from plaid.model.consumer_report_permissible_purpose import (
-    ConsumerReportPermissiblePurpose,
-)
 from plaid.api import plaid_api
 from flask_migrate import Migrate
 from utils.error_utils import error_response
@@ -137,24 +128,6 @@ def create_link_token():
         )
         if PLAID_REDIRECT_URI != None:
             request["redirect_uri"] = PLAID_REDIRECT_URI
-        if Products("statements") in products:
-            statements = LinkTokenCreateRequestStatements(
-                end_date=date.today(), start_date=date.today() - timedelta(days=30)
-            )
-            request["statements"] = statements
-
-        cra_products = [
-            "cra_base_report",
-            "cra_income_insights",
-            "cra_partner_insights",
-        ]
-        if any(product in cra_products for product in PLAID_PRODUCTS):
-            request["user_token"] = user_token
-            request["consumer_report_permissible_purpose"] = (
-                ConsumerReportPermissiblePurpose("ACCOUNT_REVIEW_CREDIT")
-            )
-            request["cra_options"] = LinkTokenCreateRequestCraOptions(days_requested=60)
-        # create link token
         response = client.link_token_create(request)
         return jsonify(response.to_dict())
     except plaid.ApiException as e:

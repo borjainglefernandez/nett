@@ -9,6 +9,7 @@ interface QuickstartState {
 		error_type: string;
 	};
 	accountsNeedRefresh: boolean;
+	redirectLoading: boolean;
 }
 
 const initialState: QuickstartState = {
@@ -18,14 +19,16 @@ const initialState: QuickstartState = {
 		error_code: "",
 		error_message: "",
 	},
-	accountsNeedRefresh: false, // New field
+	accountsNeedRefresh: false,
+	redirectLoading: false,
 };
 
 // Step 2: Extend action types to include triggering and clearing refresh
 type QuickstartAction =
 	| { type: "SET_STATE"; state: Partial<QuickstartState> }
 	| { type: "TRIGGER_ACCOUNT_REFRESH" }
-	| { type: "CLEAR_ACCOUNT_REFRESH" };
+	| { type: "CLEAR_ACCOUNT_REFRESH" }
+	| { type: "SET_REDIRECT_LOADING"; payload: boolean };
 
 // Step 3: Add accountsNeedRefresh to context
 interface QuickstartContext extends QuickstartState {
@@ -52,6 +55,8 @@ export const QuickstartProvider: React.FC<{ children: ReactNode }> = (
 				return { ...state, accountsNeedRefresh: true };
 			case "CLEAR_ACCOUNT_REFRESH":
 				return { ...state, accountsNeedRefresh: false };
+			case "SET_REDIRECT_LOADING":
+				return { ...state, redirectLoading: action.payload };
 			default:
 				return state;
 		}

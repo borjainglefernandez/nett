@@ -294,38 +294,49 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 	return (
 		<Paper sx={{ height: 500, width: "100%", p: 2 }}>
-			{selectionModel.length > 0 ? (
-				<Stack direction='row' justifyContent='space-between'>
-					<Button
-						variant='outlined'
-						color='error'
-						onClick={() => openDeleteDialog(null)}
-					>
-						Delete Selected ({selectionModel.length})
-					</Button>
+			{rows.length === 0 ? (
+				<Stack
+					alignItems='center'
+					justifyContent='center'
+					height='100%'
+					textAlign='center'
+				>
+					<Typography variant='h6' color='text.secondary'>
+						No transactions to display.
+					</Typography>
 				</Stack>
 			) : (
-				<></>
-			)}
+				<>
+					{selectionModel.length > 0 && (
+						<Stack direction='row' justifyContent='space-between' mb={2}>
+							<Button
+								variant='outlined'
+								color='error'
+								onClick={() => openDeleteDialog(null)}
+							>
+								Delete Selected ({selectionModel.length})
+							</Button>
+						</Stack>
+					)}
 
-			<DataGrid
-				rows={rows}
-				columns={columns}
-				pageSizeOptions={[5, 10]}
-				checkboxSelection
-				onRowSelectionModelChange={(newSelection) =>
-					setSelectionModel(newSelection)
-				}
-				rowSelectionModel={selectionModel}
-				initialState={{
-					sorting: {
-						sortModel: [{ field: "date", sort: "desc" }],
-					},
-				}}
-				sx={{
-					border: 0,
-				}}
-			/>
+					<DataGrid
+						rows={rows}
+						columns={columns}
+						pageSizeOptions={[5, 10]}
+						checkboxSelection
+						onRowSelectionModelChange={(newSelection) =>
+							setSelectionModel(newSelection)
+						}
+						rowSelectionModel={selectionModel}
+						initialState={{
+							sorting: {
+								sortModel: [{ field: "date", sort: "desc" }],
+							},
+						}}
+						sx={{ border: 0 }}
+					/>
+				</>
+			)}
 
 			<Dialog
 				open={deleteDialogOpen}

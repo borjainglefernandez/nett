@@ -47,8 +47,7 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	isSelected,
 	selectDeselectAccount,
 }) => {
-	// 'Hooks
-	const [selected, setSelected] = useState(true);
+	// Hooks
 	const [expanded, setExpanded] = useState(false);
 	const [openRemoveAccountDialog, setOpenRemoveAccountDialog] = useState(false);
 

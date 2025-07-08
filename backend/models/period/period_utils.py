@@ -20,7 +20,7 @@ def get_oldest_transaction_date() -> datetime:
         raise ValueError("No transactions found in the database.")
 
 
-def get_spent_amounts_by_frequency(frequency: BudgetFrequency) -> list[dict]:
+def get_totals_by_frequency(frequency: BudgetFrequency) -> list[dict]:
     try:
         start_date = get_oldest_transaction_date()
     except ValueError:
@@ -34,9 +34,24 @@ def get_spent_amounts_by_frequency(frequency: BudgetFrequency) -> list[dict]:
         current_end = get_frequency_period_end_date(frequency, current_start)
 
         # Sum all transactions in this period
-        total = (
+        total_spent = (
             db.session.query(func.sum(Txn.amount))
-            .filter(Txn.date >= current_start, Txn.date <= current_end)
+            .filter(
+                Txn.date >= current_start,
+                Txn.date <= current_end,
+                Txn.amount > 0,  # Only expenses
+            )
+            .scalar()
+            or 0.0
+        )
+
+        total_income = (
+            db.session.query(func.sum(Txn.amount))
+            .filter(
+                Txn.date >= current_start,
+                Txn.date <= current_end,
+                Txn.amount < 0,  # Only income
+            )
             .scalar()
             or 0.0
         )
@@ -45,7 +60,8 @@ def get_spent_amounts_by_frequency(frequency: BudgetFrequency) -> list[dict]:
             Period(
                 start_date=current_start,
                 end_date=current_end,
-                spent_amount=total,
+                spent_amount=total_spent,
+                income_amount=-1*total_income, # Income = negative expenses
             )
         )
 
