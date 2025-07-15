@@ -15,6 +15,7 @@ import {
 	Box,
 	Typography,
 	Switch,
+	TextField,
 } from "@mui/material";
 import Account from "../../Models/Account";
 import { Button } from "plaid-threads";
@@ -25,6 +26,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SavingsTwoToneIcon from "@mui/icons-material/SavingsTwoTone";
 import CategoryTwoToneIcon from "@mui/icons-material/CategoryTwoTone";
 import ClassTwoToneIcon from "@mui/icons-material/ClassTwoTone";
+import useApiService from "../../hooks/apiService";
+import useAppAlert from "../../hooks/appAlert";
+import AppAlert from "../Alerts/AppAlert";
 
 interface AccountSelectableCard {
 	account: Account;
@@ -47,20 +51,33 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	isSelected,
 	selectDeselectAccount,
 }) => {
-	console.log(account);
-
-	// Hooks
+	const alert = useAppAlert();
+	const { put } = useApiService(alert);
 	const [expanded, setExpanded] = useState(false);
 	const [openRemoveAccountDialog, setOpenRemoveAccountDialog] = useState(false);
+	const [isEditingName, setIsEditingName] = useState(false);
+	const [editableName, setEditableName] = useState(account.name);
 
 	const handleExpandClick = () => {
 		setExpanded(!expanded);
 	};
 
 	const handleAccountRemove = () => {
-		// TODO: delete account
 		console.log("DELETE ACCOUNT");
 		setOpenRemoveAccountDialog(false);
+	};
+
+	const handleNameUpdate = async () => {
+		const data = await put("/api/account", {
+			id: account.id,
+			name: editableName,
+		});
+		console.log("Updated account name:", data);
+		if (data) {
+			account.name = editableName; 
+			setIsEditingName(false);
+			alert.trigger("Account name updated successfully.", "success");
+		}
 	};
 
 	return (
@@ -88,6 +105,7 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 					</Button>
 				</DialogActions>
 			</Dialog>
+
 			<Card sx={{ boxShadow: 3, borderRadius: 2 }}>
 				<CardHeader
 					avatar={
@@ -109,16 +127,47 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 							{!account.logo && account.name?.[0]}
 						</Avatar>
 					}
-					title={account.name}
+					title={
+						isEditingName ? (
+							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+								<TextField
+									value={editableName}
+									onChange={(e) => setEditableName(e.target.value)}
+									size='small'
+									variant='standard'
+								/>
+								<Button small onClick={handleNameUpdate}>
+									Save
+								</Button>
+								<Button
+									small
+									secondary
+									onClick={() => {
+										setIsEditingName(false);
+										setEditableName(account.name);
+									}}
+								>
+									Cancel
+								</Button>
+							</Box>
+						) : (
+							<Box
+								sx={{ cursor: "pointer" }}
+								onClick={() => setIsEditingName(true)}
+							>
+								{account.name}
+							</Box>
+						)
+					}
 					action={
 						<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
 							<Switch
 								id={account.id}
-								onChange={(e) => {
+								onChange={() => {
 									selectDeselectAccount(account, !isSelected);
 								}}
 								checked={isSelected}
-								size='small' // Making the select checkbox smaller
+								size='small'
 							/>
 							<IconButton
 								aria-label='remove account'
@@ -140,9 +189,7 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 					subheader={`Last updated ${formatDate(account.last_updated)}`}
 					sx={{ fontWeight: "bold" }}
 				/>
-				<CardActions disableSpacing>
-					{/* Empty since we moved the collapse icon to the top */}
-				</CardActions>
+				<CardActions disableSpacing />
 				<Collapse in={expanded} timeout='auto' unmountOnExit>
 					<CardContent>
 						<Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -182,6 +229,12 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 					</CardContent>
 				</Collapse>
 			</Card>
+			<AppAlert
+				open={alert.open}
+				message={alert.message}
+				severity={alert.severity}
+				onClose={alert.close}
+			/>
 		</>
 	);
 };

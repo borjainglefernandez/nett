@@ -1,7 +1,7 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, request, jsonify
 from http import HTTPStatus
 from models.account.account import Account
-from utils.route_utils import safe_route
+from utils.route_utils import safe_route, update_model_request
 from utils.model_utils import (
     list_instances_of_model,
 )
@@ -17,6 +17,11 @@ account_bp = Blueprint("account", __name__, url_prefix="/api/account")
 def get_accounts():
     return jsonify(list_instances_of_model(Account))
 
+
+@account_bp.route("", methods=["PUT"])
+@safe_route
+def update_account():
+    return update_model_request(Account, request)
 
 @account_bp.route("/<account_id>/transactions", methods=["GET"])
 @safe_route
