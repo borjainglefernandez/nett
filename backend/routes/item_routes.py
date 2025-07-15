@@ -1,10 +1,12 @@
 from datetime import datetime
 from decimal import Decimal
+import os
 from sqlite3 import IntegrityError
 import time
 from flask import Blueprint, request, jsonify, current_app
 from http import HTTPStatus
 
+from plaid.model.country_code import CountryCode
 from models.account.account import Account
 from models.institution.institution import Institution
 
@@ -17,7 +19,8 @@ from utils.error_utils import (
     error_response,
 )
 from plaid.model.item_get_request import ItemGetRequest
-from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
+from plaid.model.accounts_get_request import AccountsGetRequest
+from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
 from models.transaction.payment_channel import PaymentChannel
 from models.account.account import Account
 from models.item.item import Item
@@ -47,7 +50,6 @@ from utils.error_utils import (
     error_response,
 )
 from plaid.model.item_get_request import ItemGetRequest
-from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
 from utils.route_utils import safe_route
 
 item_bp = Blueprint("item", __name__, url_prefix="/api/item")
@@ -67,24 +69,40 @@ def create_item():
 
     item_dict["access_token"] = access_token
     item_dict["id"] = item_dict["item_id"]
-    item = create_model_instance_from_dict(
-        Item, item_dict, fail_on_duplicate=False
+    item = create_model_instance_from_dict(Item, item_dict, fail_on_duplicate=False)
+
+    # Get item's insitution details
+    institution_id = item_dict["institution_id"]
+    get_institution_by_id_request = InstitutionsGetByIdRequest(
+        institution_id=institution_id,
+        country_codes=list(
+            map(
+                lambda x: CountryCode(x),
+                os.getenv("PLAID_COUNTRY_CODES", "US").split(","),
+            )
+        ),
+        options={
+            "include_optional_metadata": True,
+        },
     )
+    get_institution_response = plaid_client.institutions_get_by_id(
+        get_institution_by_id_request
+    )
+    institution_dict = get_institution_response["institution"].to_dict()
 
     # Create item's institution
     institution_dict = {
         "id": item_dict["institution_id"],
         "name": item_dict["institution_name"],
+        "logo": institution_dict.get("logo", None),
     }
     institution = create_model_instance_from_dict(
         Institution, institution_dict, fail_on_duplicate=False
     )
 
     # Add item's accounts
-    account_balance_request = AccountsBalanceGetRequest(access_token=access_token)
-    account_balance_response = plaid_client.accounts_balance_get(
-        account_balance_request
-    )
+    account_get_request = AccountsGetRequest(access_token=access_token)
+    account_balance_response = plaid_client.accounts_get(account_get_request)
     plaid_accounts = account_balance_response["accounts"]
 
     accounts = []
@@ -94,7 +112,9 @@ def create_item():
         account_dict = {
             "id": plaid_account.get("persistent_account_id")
             or plaid_account.get("account_id"),
-            "name": plaid_account.get("official_name") + "-" + plaid_account.get("mask", ""),
+            "name": plaid_account.get("official_name")
+            + "-"
+            + plaid_account.get("mask", ""),
             "balance": balances.get("available") or 0.0,
             "limit": balances.get("limit") or 0.0,
             "last_updated": datetime.now(),
@@ -116,6 +136,7 @@ def create_item():
 def get_items():
     return jsonify(list_instances_of_model(Item))
 
+
 @item_bp.route("/<item_id>/sync", methods=["POST"])
 @safe_route
 def sync_item_transactions(item_id: str):
@@ -128,7 +149,11 @@ def sync_item_transactions(item_id: str):
         )
 
     plaid_client = current_app.config["plaid_client"]
-    retries = 3
+    try:
+        requested_retries = min(int(request.get_json().get("retries", 1)), 10)
+    except ValueError:
+        requested_retries = 3
+    retries = min(requested_retries, 10)
     delay_seconds = 2
     attempt = 0
     added = []
@@ -141,11 +166,11 @@ def sync_item_transactions(item_id: str):
         has_more = True
 
         while has_more:
-            request = TransactionsSyncRequest(
+            sync_request = TransactionsSyncRequest(
                 access_token=item.access_token,
                 cursor=current_cursor,
             )
-            response = plaid_client.transactions_sync(request).to_dict()
+            response = plaid_client.transactions_sync(sync_request).to_dict()
 
             added.extend(response["added"])
             modified.extend(response["modified"])

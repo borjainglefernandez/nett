@@ -23,13 +23,13 @@ txn_subcategory_bp = Blueprint(
 @txn_subcategory_bp.route("", methods=["POST"])
 @safe_route
 def create_subcategory():
-    return create_model_request(TxnSubcategory, request, db.session)
+    return create_model_request(TxnSubcategory, request)
 
 
 @txn_subcategory_bp.route("", methods=["PUT"])
 @safe_route
 def update_subcategory():
-    return update_model_request(TxnSubcategory, request, db.session)
+    return update_model_request(TxnSubcategory, request)
 
 
 @txn_subcategory_bp.route("/<string:subcategory_id>", methods=["DELETE"])

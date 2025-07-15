@@ -25,7 +25,7 @@ def create_transaction():
 @txn_bp.route("", methods=["PUT"])
 @safe_route
 def update_transaction():
-    return update_model_request(Txn, request, db.session)
+    return update_model_request(Txn, request)
 
 
 @txn_bp.route("", methods=["GET"])
@@ -37,4 +37,4 @@ def get_transactions():
 @txn_bp.route("/<string:txn_id>", methods=["DELETE"])
 @safe_route
 def delete_transaction(txn_id: str):
-    return delete_model_request(Txn, txn_id, db.session)
+    return delete_model_request(Txn, txn_id)

@@ -23,13 +23,13 @@ txn_category_bp = Blueprint("txn_category", __name__, url_prefix="/api/category"
 @txn_category_bp.route("", methods=["POST"])
 @safe_route
 def create_category():
-    return create_model_request(TxnCategory, request, db.session)
+    return create_model_request(TxnCategory, request)
 
 
 @txn_category_bp.route("", methods=["PUT"])
 @safe_route
 def update_category():
-    return update_model_request(TxnCategory, request, db.session)
+    return update_model_request(TxnCategory, request)
 
 
 @txn_category_bp.route("/<string:category_id>", methods=["DELETE"])

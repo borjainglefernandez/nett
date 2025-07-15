@@ -47,6 +47,8 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	isSelected,
 	selectDeselectAccount,
 }) => {
+	console.log(account);
+
 	// Hooks
 	const [expanded, setExpanded] = useState(false);
 	const [openRemoveAccountDialog, setOpenRemoveAccountDialog] = useState(false);
@@ -90,13 +92,21 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 				<CardHeader
 					avatar={
 						<Avatar
+							src={
+								account.logo
+									? `data:image/png;base64,${account.logo}`
+									: undefined
+							}
 							sx={{
-								bgcolor:
-									account.account_subtype === "savings" ? "green" : "blue",
+								bgcolor: !account.logo
+									? account.account_subtype === "savings"
+										? "green"
+										: "blue"
+									: undefined,
 							}}
 							aria-label='account'
 						>
-							{account.name?.[0]}
+							{!account.logo && account.name?.[0]}
 						</Avatar>
 					}
 					title={account.name}

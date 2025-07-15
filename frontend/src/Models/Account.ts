@@ -80,6 +80,7 @@ interface Account {
   institution_name: string;
   last_updated: Date;
   transaction_count: number;
+  logo: string | null;
 }
 
 export default Account;

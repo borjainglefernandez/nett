@@ -56,17 +56,20 @@ const Main = () => {
 		localStorage.setItem("link_token", data.link_token);
 	}, [dispatch]);
 
-	const syncTransactions = useCallback(async () => {
+	const syncTransactions = useCallback(async (accountNeedsRefresh: boolean) => {
 		const itemData = await get("/api/item");
 		const fetchedItems: Item[] = itemData
 			.map((item: any) => ({
 				...item,
 			}))
 			.filter((item: Item) => item && item.id);
-
 		const itemSyncResponses = await Promise.all(
 			fetchedItems.map(async (item) =>
-				post("/api/item/" + item.id + "/sync", {})
+				post("/api/item/" + item.id + "/sync", {
+					// When an account is initially added, its transactions might not be available immediately.
+					// This is why we retry the sync a few times.
+					retries: accountNeedsRefresh ? 3 : 1,
+				})
 			)
 		);
 		const allItemsSynced = itemSyncResponses.every(
@@ -117,7 +120,6 @@ const Main = () => {
 	}, [selectedAccounts]);
 
 	useEffect(() => {
-		console.log("Accounts need refresh:", accountsNeedRefresh);
 		const init = async () => {
 			setLoading(true);
 			try {
@@ -132,7 +134,7 @@ const Main = () => {
 					return;
 				}
 				await generateToken();
-				await syncTransactions();
+				await syncTransactions(accountsNeedRefresh);
 				await getAccounts();
 				await getTransactions();
 				dispatch({ type: "CLEAR_ACCOUNT_REFRESH" });

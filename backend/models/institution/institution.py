@@ -7,6 +7,7 @@ from models import db
 class Institution(db.Model):
     id = db.Column(db.String(120), primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
+    logo = db.Column(db.Text, nullable=True)  # Base64-encoded image string
 
     # Accounts
     accounts = db.relationship("Account", backref="institution", lazy=True)
@@ -16,6 +17,7 @@ class Institution(db.Model):
         self,
         id: str,
         name: str,
+        logo: str = None,
         accounts: List[Account] = None,
         items: List[Item] = None,
     ):
@@ -25,6 +27,7 @@ class Institution(db.Model):
             items = []
         self.id = id
         self.name = name
+        self.logo = logo
         self.accounts = accounts
         self.items = items
 
@@ -32,6 +35,7 @@ class Institution(db.Model):
         return (
             f"<Institution(id={self.id}, "
             f"name={self.name}, "
+            f"logo={'set' if self.logo else 'none'}, "
             f"accounts={len(self.accounts)}, "
             f"items={len(self.items)})>"
         )
