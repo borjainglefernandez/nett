@@ -168,6 +168,11 @@ const Main = () => {
 		setSelectedAccounts(newSelectedAccounts);
 	};
 
+	const removeAccount = (accountId: string) => {
+		setAccounts((prev) => prev.filter((a) => a.id !== accountId));
+		setSelectedAccounts((prev) => prev.filter((a) => a.id !== accountId));
+	};
+
 	return (
 		<div className={styles.App}>
 			{loading || redirectLoading ? (
@@ -195,6 +200,7 @@ const Main = () => {
 							accounts={accounts}
 							selectedAccounts={selectedAccounts}
 							selectDeselectAccount={selectDeselectAccount}
+							removeAccount={removeAccount}
 						/>
 					</TabPanel>
 					<TabPanel value={tabIndex} index={1}>

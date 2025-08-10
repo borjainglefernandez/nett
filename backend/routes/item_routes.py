@@ -112,9 +112,12 @@ def create_item():
         account_dict = {
             "id": plaid_account.get("persistent_account_id")
             or plaid_account.get("account_id"),
-            "name": plaid_account.get("official_name")
+            "name": plaid_account.get(
+                "official_name", plaid_account.get("name", "Unnamed")
+            )
             + "-"
             + plaid_account.get("mask", ""),
+            "original_name": plaid_account.get("name", "Unnamed"),
             "balance": balances.get("available") or 0.0,
             "limit": balances.get("limit") or 0.0,
             "last_updated": datetime.now(),

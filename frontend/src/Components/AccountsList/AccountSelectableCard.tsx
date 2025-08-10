@@ -34,6 +34,7 @@ interface AccountSelectableCard {
 	account: Account;
 	isSelected: boolean;
 	selectDeselectAccount: (account: Account, select: boolean) => void;
+	removeAccount: (accountId: string) => void;
 }
 
 const ExpandMore = styled(IconButton)<{ expand: boolean }>(
@@ -50,9 +51,10 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	account,
 	isSelected,
 	selectDeselectAccount,
+	removeAccount,
 }) => {
 	const alert = useAppAlert();
-	const { put } = useApiService(alert);
+	const { put, del } = useApiService(alert);
 	const [expanded, setExpanded] = useState(false);
 	const [openRemoveAccountDialog, setOpenRemoveAccountDialog] = useState(false);
 	const [isEditingName, setIsEditingName] = useState(false);
@@ -62,8 +64,13 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 		setExpanded(!expanded);
 	};
 
-	const handleAccountRemove = () => {
-		console.log("DELETE ACCOUNT");
+	const handleAccountRemove = async () => {
+		const data = await del(`/api/account/${account.id}`);
+		if (data) {
+			alert.trigger("Account removed successfully.", "success");
+			removeAccount(account.id);
+			setOpenRemoveAccountDialog(false);
+		}
 		setOpenRemoveAccountDialog(false);
 	};
 
@@ -72,9 +79,8 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 			id: account.id,
 			name: editableName,
 		});
-		console.log("Updated account name:", data);
 		if (data) {
-			account.name = editableName; 
+			account.name = editableName;
 			setIsEditingName(false);
 			alert.trigger("Account name updated successfully.", "success");
 		}
@@ -97,9 +103,7 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 					</DialogContentText>
 				</DialogContent>
 				<DialogActions>
-					<Button submitting onClick={handleAccountRemove}>
-						Delete
-					</Button>
+					<Button onClick={() => handleAccountRemove()}>Delete</Button>
 					<Button secondary onClick={() => setOpenRemoveAccountDialog(false)}>
 						Cancel
 					</Button>

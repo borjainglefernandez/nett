@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-from http import HTTPStatus
 
 from utils.route_utils import (
     create_model_request,
@@ -11,7 +10,6 @@ from utils.model_utils import (
     list_instances_of_model,
 )
 from models.budget.budget import Budget
-from models import db
 
 
 budget_bp = Blueprint("budget", __name__, url_prefix="/api/budget")

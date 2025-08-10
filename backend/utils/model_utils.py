@@ -1,3 +1,4 @@
+from sqlite3 import IntegrityError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from pprint import pformat
@@ -42,10 +43,10 @@ def create_model_instance_from_dict(
 ):
     logger.info(f"📦 Creating instance of {model_class.__name__}")
     mapper = inspect(model_class)
-    model_columns = {column.key for column in mapper.columns}
+    model_columns = {column.key: column for column in mapper.columns}
     relationships = {rel.key: rel.mapper.class_ for rel in mapper.relationships}
 
-    logger.debug(f"📋 Model columns: {model_columns}")
+    logger.debug(f"📋 Model columns: {set(model_columns.keys())}")
     logger.debug(f"🔗 Model relationships: {list(relationships.keys())}")
     logger.debug(f"📨 Received data:\n{pformat(data)}")
 
@@ -55,15 +56,16 @@ def create_model_instance_from_dict(
         raise ValueError(required_msg)
 
     init_kwargs = {}
-
     primary_key = mapper.primary_key[0].name
+
+    # Check for exact primary key match
     if primary_key in data and data[primary_key] is not None:
         logger.info(
             f"🔍 Checking for existing {model_class.__name__} with {primary_key}={data[primary_key]}"
         )
         existing = db.session.get(model_class, data[primary_key])
-        logger.debug(f"🔍 Existing instance: {existing}")
         if existing:
+            logger.debug(f"🔍 Existing instance: {existing}")
             if fail_on_duplicate:
                 logger.error(
                     f"❌ Duplicate detected for {model_class.__name__} with {primary_key}={data[primary_key]}"
@@ -73,10 +75,28 @@ def create_model_instance_from_dict(
                 )
             else:
                 logger.warning(
-                    f"⚠️ Duplicate found for {model_class.__name__} with {primary_key}={data[primary_key]}. Returning existing instance."
+                    f"⚠️ Duplicate found by primary key. Returning existing instance."
                 )
                 return existing
 
+    # Check for unique constraint violations (e.g., name, original_name)
+    if not fail_on_duplicate:
+        unique_filter = {}
+        for key, column in model_columns.items():
+            if column.unique and key in data and data[key] is not None:
+                unique_filter[key] = data[key]
+
+        if unique_filter:
+            existing_unique = (
+                db.session.query(model_class).filter_by(**unique_filter).first()
+            )
+            if existing_unique:
+                logger.warning(
+                    f"⚠️ Duplicate found on unique fields {list(unique_filter.keys())}. Returning existing instance."
+                )
+                return existing_unique
+
+    # Build init kwargs from columns and relationships
     for key, value in data.items():
         if key in model_columns:
             logger.debug(f"✅ Processing column field: {key} = {value}")
@@ -87,12 +107,10 @@ def create_model_instance_from_dict(
                         value = col_type.python_type(value)
             except Exception as e:
                 logger.warning(f"⚠️ Type conversion failed for '{key}': {e}")
-
             init_kwargs[key] = value
 
         elif key in relationships:
             logger.debug(f"🔄 Resolving relationship: {key}")
-
             if value is None:
                 init_kwargs[key] = None
             elif isinstance(value, dict):
@@ -115,11 +133,33 @@ def create_model_instance_from_dict(
 
     logger.debug(f"🛠 Init kwargs for {model_class.__name__}:\n{pformat(init_kwargs)}")
 
-    instance = model_class(**init_kwargs)
-    db.session.add(instance)
-    db.session.commit()
-    logger.info(f"✅ {model_class.__name__} instance created and added to session.")
-    return instance
+    try:
+        instance = model_class(**init_kwargs)
+        db.session.add(instance)
+        db.session.commit()
+        logger.info(f"✅ {model_class.__name__} instance created and added to session.")
+        return instance
+    except IntegrityError as e:
+        db.session.rollback()
+        logger.error(f"❌ IntegrityError during creation: {e}")
+        if not fail_on_duplicate:
+            # Try to fetch based on the unique fields again
+            unique_filter = {
+                key: data[key]
+                for key, column in model_columns.items()
+                if column.unique and key in data
+            }
+            existing = (
+                db.session.query(model_class).filter_by(**unique_filter).first()
+                if unique_filter
+                else None
+            )
+            if existing:
+                logger.warning(
+                    f"⚠️ IntegrityError but found existing instance with unique fields. Returning it."
+                )
+                return existing
+        raise
 
 
 def update_model_instance_from_dict(instance, data: dict):

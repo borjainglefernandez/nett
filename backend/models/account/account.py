@@ -9,12 +9,15 @@ from models.account.account_subtype import AccountSubtype
 class Account(db.Model):
     id = db.Column(db.String(120), primary_key=True)
     name = db.Column(db.String(120), nullable=True, unique=True)
+    original_name = db.Column(db.String(120), nullable=True, unique=True)
     balance = db.Column(db.Numeric(10, 2), nullable=True)
     limit = db.Column(db.Numeric(10, 2), nullable=True)
     last_updated = db.Column(db.DateTime, nullable=True)
 
     # Transactions
-    transactions = db.relationship("Txn", backref="account", lazy=True)
+    transactions = db.relationship(
+        "Txn", backref="account", lazy=True, cascade="all, delete-orphan"
+    )
 
     # Institution foreign key
     institution_id = db.Column(
@@ -31,6 +34,7 @@ class Account(db.Model):
         self,
         id: str,
         name: Optional[str] = None,
+        original_name: Optional[str] = None,
         balance: Optional[Decimal] = None,
         limit: Optional[Decimal] = None,
         last_updated: Optional[datetime] = None,
@@ -41,6 +45,7 @@ class Account(db.Model):
     ):
         self.id = id
         self.name = name
+        self.original_name = original_name
         self.balance = balance
         self.limit = limit
         self.last_updated = last_updated
@@ -53,6 +58,7 @@ class Account(db.Model):
         return (
             f"<Account(id={self.id}, "
             f"name={self.name if self.name else 'Unnamed'}, "
+            f"original_name={self.original_name if self.original_name else 'Unnamed'}, "
             f"balance={self.balance if self.balance is not None else 'N/A'}, "
             f"last_updated={self.last_updated if self.last_updated else 'Never'}, "
             f"institution={self.institution}, "
