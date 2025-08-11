@@ -27,6 +27,7 @@ import useApiService from "../../hooks/apiService";
 import useAppAlert from "../../hooks/appAlert";
 import AppAlert from "../Alerts/AppAlert";
 import EditableTransactionNameCell from "./TransactionNameCell";
+import { Tooltip } from "@mui/material";
 
 interface TransactionTableProps {
 	transactions: Transaction[];
@@ -188,7 +189,27 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 	const defaultColumnProps = { flex: 1 };
 	const columns: GridColDef[] = [
-		{ field: "date", headerName: "Date", ...defaultColumnProps },
+		{
+			field: "date",
+			headerName: "Date",
+			flex: 0.6,
+			renderCell: (params: GridRenderCellParams) => {
+				const date = new Date(params.value);
+				const formattedDate = date.toLocaleDateString(undefined, {
+					month: "2-digit",
+					day: "2-digit",
+					year: "numeric",
+				});
+				const fullDateTime = date.toLocaleString(); // full date and time in local timezone
+
+				return (
+					<Tooltip title={fullDateTime}>
+						<span>{formattedDate}</span>
+					</Tooltip>
+				);
+			},
+		},
+
 		{
 			field: "name",
 			headerName: "Name",
@@ -209,7 +230,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			field: "amount",
 			headerName: "Amount",
 			...defaultColumnProps,
-			flex: 0.5,
+			flex: 0.6,
 			renderCell: (params: GridRenderCellParams) =>
 				new Intl.NumberFormat("en-US", {
 					style: "currency",
