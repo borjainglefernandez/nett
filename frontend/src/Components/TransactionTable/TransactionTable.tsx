@@ -26,6 +26,7 @@ import { Category, Subcategory } from "../../Models/Category";
 import useApiService from "../../hooks/apiService";
 import useAppAlert from "../../hooks/appAlert";
 import AppAlert from "../Alerts/AppAlert";
+import EditableTransactionNameCell from "./TransactionNameCell";
 
 interface TransactionTableProps {
 	transactions: Transaction[];
@@ -192,22 +193,18 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			field: "name",
 			headerName: "Name",
 			...defaultColumnProps,
+			flex: 1.5,
+
 			renderCell: (params: GridRenderCellParams) => (
-				<Stack
-					direction='row'
-					alignItems='center'
-					spacing={1}
-					sx={{ height: "100%", alignSelf: "center" }}
-				>
-					<Avatar
-						src={params.row.logo_url}
-						alt={params.value}
-						sx={{ width: 24, height: 24 }}
-					/>
-					<Typography variant='body2'>{params.value}</Typography>
-				</Stack>
+				<EditableTransactionNameCell
+					id={params.row.id}
+					value={params.value}
+					logoUrl={params.row.logo_url}
+					updateTransactionField={updateTransactionField}
+				/>
 			),
 		},
+
 		{
 			field: "amount",
 			headerName: "Amount",
@@ -264,6 +261,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			field: "actions",
 			type: "actions",
 			headerName: "Actions",
+			flex: 0.5,
 			getActions: (params) => [
 				<GridActionsCellItem
 					icon={<DeleteIcon sx={{ color: "red" }} />}
