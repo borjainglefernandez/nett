@@ -17,6 +17,7 @@ import {
 	Switch,
 	TextField,
 } from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
 import Account from "../../Models/Account";
 import { Button } from "plaid-threads";
 import { useState } from "react";
@@ -155,12 +156,23 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 								</Button>
 							</Box>
 						) : (
-							<Box
-								sx={{ cursor: "pointer" }}
+							<Typography
+								sx={{
+									textTransform: "none",
+									cursor: "pointer",
+									display: "flex",
+									alignItems: "center",
+									gap: 0.5,
+									"&:hover": {
+										color: "primary.main",
+										textDecoration: "underline",
+									},
+								}}
 								onClick={() => setIsEditingName(true)}
 							>
 								{account.name}
-							</Box>
+								<EditIcon fontSize='small' color='action' />
+							</Typography>
 						)
 					}
 					action={
@@ -197,14 +209,6 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 				<Collapse in={expanded} timeout='auto' unmountOnExit>
 					<CardContent>
 						<Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-							<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-								<IconButton sx={{ color: "primary.main" }}>
-									<SavingsTwoToneIcon />
-								</IconButton>
-								<Typography variant='body2' color='textSecondary'>
-									{`$${account.balance?.toFixed(2)}`}
-								</Typography>
-							</Box>
 							<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
 								<IconButton sx={{ color: "secondary.main" }}>
 									<CategoryTwoToneIcon />
