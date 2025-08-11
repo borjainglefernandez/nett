@@ -60,4 +60,4 @@ def delete_subcategory(subcategory_id: str):
 @txn_subcategory_bp.route("/<string:subcategory_id>", methods=["GET"])
 @safe_route
 def get_subcategory(subcategory_id: str):
-    return get_model_request(TxnSubcategory, subcategory_id, db.session)
+    return get_model_request(TxnSubcategory, subcategory_id)

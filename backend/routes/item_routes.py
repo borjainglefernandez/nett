@@ -257,7 +257,7 @@ def handle_added_transactions(transactions: list):
             subcategory = TxnSubcategory(
                 name=detailed_category_name,
                 description=f"Subcategory of {primary_category_name}",
-                category=category,
+                category_id=category.id,
             )
             db.session.add(subcategory)
             db.session.commit()
