@@ -109,15 +109,16 @@ def create_item():
     for plaid_account in plaid_accounts:
         balances = plaid_account["balances"]
         logger.debug(f"Processing account: {plaid_account}")
+        account_name = (
+            plaid_account.get("official_name", plaid_account.get("name", "Unnamed"))
+            + "-"
+            + plaid_account.get("mask", "")
+        )
         account_dict = {
             "id": plaid_account.get("persistent_account_id")
             or plaid_account.get("account_id"),
-            "name": plaid_account.get(
-                "official_name", plaid_account.get("name", "Unnamed")
-            )
-            + "-"
-            + plaid_account.get("mask", ""),
-            "original_name": plaid_account.get("name", "Unnamed"),
+            "name": account_name,
+            "original_name": account_name,
             "balance": balances.get("available") or 0.0,
             "limit": balances.get("limit") or 0.0,
             "last_updated": datetime.now(),
