@@ -11,6 +11,21 @@ else
     echo "Docker is already installed."
 fi
 
+echo "=== Checking if Docker daemon is running... ==="
+if ! docker info &> /dev/null; then
+    echo "Docker daemon is not running. Starting Docker Desktop..."
+    open -a Docker
+
+    echo "Waiting for Docker to start..."
+    # Keep checking until docker responds
+    while ! docker info &> /dev/null; do
+        sleep 2
+    done
+    echo "Docker is now running."
+else
+    echo "Docker daemon is already running."
+fi
+
 echo "=== Checking for Docker Compose... ==="
 if ! docker compose version &> /dev/null; then
     echo "Docker Compose plugin not found. Docker Desktop on Mac should include it."
