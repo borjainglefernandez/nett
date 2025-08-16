@@ -1,8 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
-from models.transaction.txn_category import TxnCategory
-from models.transaction.txn_subcategory import TxnSubcategory
 from models import db
 from models.transaction.payment_channel import PaymentChannel
 
@@ -36,8 +34,8 @@ class Txn(db.Model):
         id: str,
         name: str,
         amount: Decimal,
-        category: TxnCategory,
-        subcategory: Optional[TxnSubcategory] = None, 
+        category_id: str,
+        subcategory_id: Optional[str] = None,
         date: Optional[datetime] = None,
         date_time: Optional[datetime] = None,
         merchant: Optional[str] = None,
@@ -48,8 +46,8 @@ class Txn(db.Model):
         self.id = id
         self.name = name
         self.amount = amount
-        self.category = category
-        self.subcategory = subcategory
+        self.category_id = category_id
+        self.subcategory_id = subcategory_id
         self.date = date
         self.date_time = date_time
         self.merchant = merchant

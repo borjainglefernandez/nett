@@ -1,6 +1,11 @@
-// EditableTransactionNameCell.tsx
 import { useState } from "react";
-import { Avatar, Typography, TextField, Box } from "@mui/material";
+import {
+	Avatar,
+	Typography,
+	TextField,
+	Box,
+	CircularProgress,
+} from "@mui/material";
 
 export default function EditableTransactionNameCell({
 	id,
@@ -20,6 +25,8 @@ export default function EditableTransactionNameCell({
 }) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [tempName, setTempName] = useState(value);
+	const [imgLoaded, setImgLoaded] = useState(false);
+	const [imgError, setImgError] = useState(false);
 
 	const saveName = async () => {
 		if (tempName !== value) {
@@ -35,7 +42,24 @@ export default function EditableTransactionNameCell({
 
 	return (
 		<Box sx={{ display: "flex", alignItems: "center", height: "100%" }} gap={2}>
-			<Avatar sx={{ width: 24, height: 24 }} />
+			<Avatar sx={{ width: 24, height: 24 }}>
+				{logoUrl && !imgLoaded && !imgError && <CircularProgress size={16} />}
+				{logoUrl && !imgError && (
+					<img
+						src={logoUrl}
+						alt={value}
+						style={{
+							display: imgLoaded ? "block" : "none",
+							width: "100%",
+							height: "100%",
+						}}
+						onLoad={() => setImgLoaded(true)}
+						onError={() => setImgError(true)}
+					/>
+				)}
+				{(!logoUrl || imgError) && value?.[0]}
+			</Avatar>
+
 			{isEditing ? (
 				<TextField
 					value={tempName}
@@ -44,13 +68,16 @@ export default function EditableTransactionNameCell({
 					variant='standard'
 					onBlur={saveName}
 					autoFocus
-					sx={{ flex: 1 }} // lets the input expand
+					sx={{ flex: 1 }}
 				/>
 			) : (
 				<Typography
 					variant='body2'
 					sx={{ cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
-					onClick={() => setIsEditing(true)}
+					onClick={(e) => {
+						e.stopPropagation(); // ❌ Prevents row selection
+						setIsEditing(true);
+					}}
 				>
 					{value}
 				</Typography>

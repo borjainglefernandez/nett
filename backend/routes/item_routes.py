@@ -13,7 +13,9 @@ from models.institution.institution import Institution
 from models import db
 from utils.model_utils import (
     create_model_instance_from_dict,
+    delete_model_instance,
     list_instances_of_model,
+    update_model_instance_from_dict,
 )
 from utils.error_utils import (
     error_response,
@@ -24,7 +26,6 @@ from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdReques
 from models.transaction.payment_channel import PaymentChannel
 from models.account.account import Account
 from models.item.item import Item
-from sqlalchemy.exc import IntegrityError
 from models.transaction.txn_category import TxnCategory
 from models.transaction.txn_subcategory import TxnSubcategory
 from models.transaction.txn import Txn
@@ -71,7 +72,7 @@ def create_item():
     item_dict["id"] = item_dict["item_id"]
     item = create_model_instance_from_dict(Item, item_dict, fail_on_duplicate=False)
 
-    # Get item's insitution details
+    # Get item's institution details
     institution_id = item_dict["institution_id"]
     get_institution_by_id_request = InstitutionsGetByIdRequest(
         institution_id=institution_id,
@@ -213,89 +214,74 @@ def handle_added_transactions(transactions: list):
     logger.info(f"Handling {len(transactions)} new transactions")
 
     for i, transaction in enumerate(transactions):
+        txn_id = transaction.get("transaction_id")
         logger.debug(
-            f"\nProcessing transaction {i + 1}/{len(transactions)}: ID {transaction.get('transaction_id')}"
+            f"\nProcessing transaction {i + 1}/{len(transactions)}: ID {txn_id}"
         )
 
-        existing_txn = db.session.query(Txn).get(transaction["transaction_id"])
-        if existing_txn:
-            logger.debug(
-                f"Transaction {transaction['transaction_id']} already exists, skipping."
-            )
+        # Skip if txn already exists
+        if db.session.get(Txn, txn_id):
+            logger.debug(f"Transaction {txn_id} already exists, skipping.")
             continue
 
-        account = db.session.query(Account).get(transaction["account_id"])
+        # Ensure account exists
+        account = db.session.get(Account, transaction.get("account_id"))
         if not account:
             logger.warning(
                 f"Account {transaction['account_id']} not found, skipping transaction."
             )
             continue
 
-        # Extract category and subcategory
+        # Resolve category + subcategory (create if missing)
         personal_finance = transaction.get("personal_finance_category", {})
-        primary_category_name = personal_finance.get("primary", "OTHER").strip()
-        detailed_category_name = personal_finance.get("detailed", "OTHER").strip()
-        logger.debug(
-            f"Primary category: {primary_category_name}, Subcategory: {detailed_category_name}"
-        )
+        primary_category = personal_finance.get("primary", "OTHER").strip()
+        detailed_category = personal_finance.get("detailed", "OTHER").strip()
 
-        # Get or create category
-        category = TxnCategory.query.filter_by(name=primary_category_name).one_or_none()
+        category = TxnCategory.query.filter_by(name=primary_category).one_or_none()
         if not category:
-            logger.debug(f"Creating new category: {primary_category_name}")
-            category = TxnCategory(name=primary_category_name)
-            db.session.add(category)
-            db.session.commit()
+            category = create_model_instance_from_dict(
+                TxnCategory, {"name": primary_category}, fail_on_duplicate=False
+            )
 
-        # Get or create subcategory
         subcategory = TxnSubcategory.query.filter_by(
-            name=detailed_category_name, category_id=category.id
+            name=detailed_category, category_id=category.id
         ).one_or_none()
         if not subcategory:
-            logger.debug(
-                f"Creating new subcategory: {detailed_category_name} under {primary_category_name}"
+            subcategory = create_model_instance_from_dict(
+                TxnSubcategory,
+                {
+                    "name": detailed_category,
+                    "description": f"Subcategory of {primary_category}",
+                    "category_id": category.id,
+                },
+                fail_on_duplicate=False,
             )
-            subcategory = TxnSubcategory(
-                name=detailed_category_name,
-                description=f"Subcategory of {primary_category_name}",
-                category_id=category.id,
-            )
-            db.session.add(subcategory)
-            db.session.commit()
 
+        # Safe payment channel enum parsing
         try:
-            payment_channel_str = str(transaction["payment_channel"])
-            payment_channel = PaymentChannel(payment_channel_str)
+            payment_channel = PaymentChannel(str(transaction.get("payment_channel")))
         except ValueError:
             logger.warning(
                 f"Invalid payment channel '{transaction.get('payment_channel')}', defaulting to OTHER"
             )
             payment_channel = PaymentChannel.OTHER
 
-        logger.debug(
-            f"Creating new transaction record for {transaction.get('name')} on {transaction.get('date')}"
-        )
-        new_txn = Txn(
-            id=transaction.get("transaction_id"),
-            name=transaction.get("name"),
-            amount=Decimal(transaction.get("amount") or 0.0),
-            category=category,
-            subcategory=subcategory,
-            date=transaction.get("date"),
-            date_time=transaction.get("datetime"),
-            merchant=transaction.get("merchant_name"),
-            logo_url=transaction.get("logo_url"),
-            channel=payment_channel,
-            account_id=account.id,
-        )
-        try:
-            db.session.add(new_txn)
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            logger.warning(
-                f"Duplicate transaction {transaction['transaction_id']} already exists, skipping."
-            )
+        # Build txn dict and persist
+        txn_dict = {
+            "id": txn_id,
+            "name": transaction.get("name"),
+            "amount": Decimal(transaction.get("amount") or 0.0),
+            "category_id": category.id,
+            "subcategory_id": subcategory.id,
+            "date": transaction.get("date"),
+            "date_time": transaction.get("datetime"),
+            "merchant": transaction.get("merchant_name"),
+            "logo_url": transaction.get("logo_url"),
+            "channel": payment_channel,
+            "account_id": account.id,
+        }
+
+        create_model_instance_from_dict(Txn, txn_dict, fail_on_duplicate=False)
 
     logger.info("All new transactions have been processed.")
 
@@ -303,6 +289,88 @@ def handle_added_transactions(transactions: list):
 def handle_modified_transactions(transactions: list):
     logger.info(f"Handling {len(transactions)} modified transactions")
 
+    for i, transaction in enumerate(transactions):
+        txn_id = transaction.get("transaction_id")
+        logger.debug(
+            f"Processing modified transaction {i + 1}/{len(transactions)}: ID {txn_id}"
+        )
+
+        txn = db.session.get(Txn, txn_id)
+        if not txn:
+            logger.warning(f"Modified transaction {txn_id} not found, skipping.")
+            continue
+
+        # Handle category/subcategory updates if present
+        personal_finance = transaction.get("personal_finance_category", {})
+        primary_category = personal_finance.get("primary")
+        detailed_category = personal_finance.get("detailed")
+
+        update_data = {
+            "name": transaction.get("name"),
+            "amount": Decimal(transaction.get("amount") or txn.amount),
+            "date": transaction.get("date"),
+            "date_time": transaction.get("datetime"),
+            "merchant": transaction.get("merchant_name"),
+            "logo_url": transaction.get("logo_url"),
+        }
+
+        # Ensure category exists if updated
+        if primary_category:
+            category = TxnCategory.query.filter_by(name=primary_category).one_or_none()
+            if not category:
+                category = create_model_instance_from_dict(
+                    TxnCategory, {"name": primary_category}, fail_on_duplicate=False
+                )
+            update_data["category_id"] = category.id
+
+        # Ensure subcategory exists if updated
+        if detailed_category and "category_id" in update_data:
+            subcategory = TxnSubcategory.query.filter_by(
+                name=detailed_category, category_id=update_data["category_id"]
+            ).one_or_none()
+            if not subcategory:
+                subcategory = create_model_instance_from_dict(
+                    TxnSubcategory,
+                    {
+                        "name": detailed_category,
+                        "description": f"Subcategory of {primary_category}",
+                        "category_id": update_data["category_id"],
+                    },
+                    fail_on_duplicate=False,
+                )
+            update_data["subcategory_id"] = subcategory.id
+
+        # Safe payment channel update
+        if transaction.get("payment_channel"):
+            try:
+                update_data["channel"] = PaymentChannel(
+                    str(transaction.get("payment_channel"))
+                )
+            except ValueError:
+                logger.warning(
+                    f"Invalid payment channel '{transaction.get('payment_channel')}', keeping existing."
+                )
+
+        # Apply updates
+        update_model_instance_from_dict(txn, update_data)
+
+    logger.info("All modified transactions have been processed.")
+
 
 def handle_removed_transactions(transactions: list):
     logger.info(f"Handling {len(transactions)} removed transactions")
+
+    for i, transaction in enumerate(transactions):
+        txn_id = transaction.get("transaction_id")
+        logger.debug(
+            f"Processing removed transaction {i + 1}/{len(transactions)}: ID {txn_id}"
+        )
+
+        if delete_model_instance(Txn, txn_id):
+            logger.info(f"Transaction {txn_id} successfully removed.")
+        else:
+            logger.warning(
+                f"Transaction {txn_id} could not be removed (already gone or error)."
+            )
+
+    logger.info("All removed transactions have been processed.")

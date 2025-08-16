@@ -17,7 +17,6 @@ import {
 	DialogActions,
 	Button,
 	Stack,
-	Avatar,
 	Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -306,7 +305,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				subcategory: transaction.subcategory?.name ?? "", // for filtering/sorting
 				date: transaction.date,
 				accountName: transaction.account_name,
-				logo_url: transaction.logo_url, // <-- add this
+				logo_url: transaction.logo_url, 
 			})),
 		[localTransactions]
 	);

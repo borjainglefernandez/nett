@@ -211,3 +211,41 @@ def list_instances_of_model(model_class):
     instances = db.session.query(model_class).all()
     logger.debug(f"Found {len(instances)} instances.")
     return [instance.to_dict() for instance in instances]
+
+
+def delete_model_instance(model_class, identifier):
+    """
+    Delete a model instance by primary key or instance.
+    :param model_class: SQLAlchemy model class
+    :param identifier: primary key value (e.g., id) or model instance
+    :return: True if deleted, False otherwise
+    """
+    logger.info(f"🗑️ Deleting instance of {model_class.__name__}")
+
+    try:
+        # Case 1: identifier is already an instance
+        if isinstance(identifier, model_class):
+            instance = identifier
+        else:
+            # Case 2: assume it's a primary key
+            primary_key = inspect(model_class).primary_key[0].name
+            instance = db.session.get(model_class, identifier)
+
+        if not instance:
+            logger.warning(f"⚠️ No {model_class.__name__} found for {identifier}")
+            return False
+
+        logger.debug(f"🗑️ Found {model_class.__name__}: {instance}")
+        db.session.delete(instance)
+        db.session.commit()
+        logger.info(f"✅ {model_class.__name__} deleted successfully.")
+        return True
+
+    except IntegrityError as e:
+        db.session.rollback()
+        logger.error(f"❌ IntegrityError while deleting {model_class.__name__}: {e}")
+        return False
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Unexpected error while deleting {model_class.__name__}: {e}")
+        return False
