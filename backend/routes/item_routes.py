@@ -102,22 +102,32 @@ def create_item():
     )
 
     # Add item's accounts
+    logger.info("🔍 Starting account retrieval from Plaid")
     account_get_request = AccountsGetRequest(access_token=access_token)
     account_balance_response = plaid_client.accounts_get(account_get_request)
     plaid_accounts = account_balance_response["accounts"]
 
+    logger.info(f"📊 Retrieved {len(plaid_accounts)} accounts from Plaid")
+
     accounts = []
-    for plaid_account in plaid_accounts:
+    for idx, plaid_account in enumerate(plaid_accounts, 1):
         balances = plaid_account["balances"]
-        logger.debug(f"Processing account: {plaid_account}")
+        logger.info(f"🔄 Processing account {idx}/{len(plaid_accounts)}")
+        logger.debug(f"   Full account data: {plaid_account}")
+
         account_name = (
             plaid_account.get("official_name", plaid_account.get("name", "Unnamed"))
             + "-"
             + plaid_account.get("mask", "")
         )
+
+        account_id = plaid_account.get("persistent_account_id") or plaid_account.get(
+            "account_id"
+        )
+        logger.info(f"   Account ID: {account_id}, Name: {account_name}")
+
         account_dict = {
-            "id": plaid_account.get("persistent_account_id")
-            or plaid_account.get("account_id"),
+            "id": account_id,
             "name": account_name,
             "original_name": account_name,
             "balance": balances.get("available") or 0.0,
@@ -128,11 +138,20 @@ def create_item():
             "account_type": str(plaid_account.get("type")),
             "account_subtype": str(plaid_account.get("subtype")),
         }
-        account = create_model_instance_from_dict(
-            Account, account_dict, fail_on_duplicate=False
-        )
-        accounts.append(account)
 
+        logger.debug(f"   Account dict to create: {account_dict}")
+
+        try:
+            account = create_model_instance_from_dict(
+                Account, account_dict, fail_on_duplicate=False
+            )
+            logger.info(f"   ✅ Account created successfully: {account.id}")
+            accounts.append(account)
+        except Exception as e:
+            logger.error(f"   ❌ Failed to create account: {e}", exc_info=True)
+            raise
+
+    logger.info(f"🎉 Successfully created {len(accounts)} accounts")
     return jsonify([account.to_dict() for account in accounts])
 
 
