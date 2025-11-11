@@ -16,7 +16,8 @@ account_bp = Blueprint("account", __name__, url_prefix="/api/account")
 @account_bp.route("", methods=["GET"])
 @safe_route
 def get_accounts():
-    return jsonify(list_instances_of_model(Account))
+    active_accounts = Account.query.filter_by(active=True).all()
+    return jsonify([account.to_dict() for account in active_accounts])
 
 
 @account_bp.route("", methods=["PUT"])
@@ -40,26 +41,22 @@ def get_transactions(account_id):
 @account_bp.route("/<string:account_id>", methods=["DELETE"])
 @safe_route
 def delete_account(account_id: str):
+    """Delete account by removing the entire item (bank connection)"""
     account = db.session.get(Account, account_id)
     if not account:
         return error_response(HTTPStatus.NOT_FOUND, f"Account {account_id} not found.")
 
-    # Get the parent Item before deleting the account
-    item = account.item
-    institution = account.institution
+    # Get the item_id for this account
+    item_id = account.item_id
 
-    # Delete the account
-    db.session.delete(account)
-    db.session.commit()
-
-    # If the parent Item has no more accounts, delete it too
-    if not item.accounts:
-        db.session.delete(item)
-        db.session.commit()
-
-    # If the parent Institution has no more items, delete it too
-    if not institution.items:
-        db.session.delete(institution)
-        db.session.commit()
-
-    return jsonify({}), HTTPStatus.OK
+    # Return the item_id so frontend can call the item deletion endpoint
+    return (
+        jsonify(
+            {
+                "message": "Account deletion requires removing the entire bank connection",
+                "item_id": item_id,
+                "action": "delete_item",
+            }
+        ),
+        HTTPStatus.OK,
+    )

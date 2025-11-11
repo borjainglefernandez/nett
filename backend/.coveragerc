@@ -1,0 +1,21 @@
+[run]
+source = .
+omit = 
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */venv/*
+    */env/*
+    server.py
+    */migrations/*
+    */site-packages/*
+    config.py
+    test_config.py
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+
+
+

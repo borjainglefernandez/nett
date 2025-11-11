@@ -13,6 +13,7 @@ class Account(db.Model):
     balance = db.Column(db.Numeric(10, 2), nullable=True)
     limit = db.Column(db.Numeric(10, 2), nullable=True)
     last_updated = db.Column(db.DateTime, nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
     # Transactions
     transactions = db.relationship(
@@ -42,6 +43,7 @@ class Account(db.Model):
         item_id: Optional[str] = None,
         account_type: Optional[AccountType] = None,
         account_subtype: Optional[AccountSubtype] = None,
+        active: bool = True,
     ):
         self.id = id
         self.name = name
@@ -53,6 +55,7 @@ class Account(db.Model):
         self.item_id = item_id
         self.account_type = account_type
         self.account_subtype = account_subtype
+        self.active = active
 
     def __repr__(self):
         return (
@@ -86,6 +89,9 @@ class Account(db.Model):
             ),
             "transaction_count": len(self.transactions),
             "logo": self.institution.logo if self.institution else None,
+            "active": self.active,
+            "item_id": self.item_id,
+            "institution_id": self.institution_id,
         }
 
     def get_transactions(self):

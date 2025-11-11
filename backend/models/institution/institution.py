@@ -31,6 +31,14 @@ class Institution(db.Model):
         self.accounts = accounts
         self.items = items
 
+    def to_dict(self):
+        """Convert Institution object to a dictionary."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "logo": self.logo,
+        }
+
     def __repr__(self):
         return (
             f"<Institution(id={self.id}, "

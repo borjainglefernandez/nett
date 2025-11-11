@@ -81,6 +81,8 @@ interface Account {
   last_updated: Date;
   transaction_count: number;
   logo: string | null;
+  item_id: string;
+  institution_id: string;
 }
 
 export default Account;

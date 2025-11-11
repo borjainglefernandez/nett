@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 
 interface TabPanelProps {
 	children?: React.ReactNode;
@@ -20,12 +19,12 @@ function TabPanel(props: TabPanelProps) {
 			style={{
 				display: value === index ? "block" : "none",
 				width: "100%",
-			}} // Ensure full width
+			}}
 			{...other}
 		>
 			{value === index && (
 				<Box sx={{ p: 3 }}>
-					<Typography>{children}</Typography>
+					<Box component='div'>{children}</Box>
 				</Box>
 			)}
 		</div>

@@ -13,7 +13,16 @@ import { Item } from "../Models/Item";
 import useAppAlert from "../hooks/appAlert";
 import useApiService from "../hooks/apiService";
 import AppAlert from "../Components/Alerts/AppAlert";
-import { Box, Tabs } from "@mui/material";
+import {
+	Box,
+	Tabs,
+	Dialog,
+	DialogTitle,
+	DialogContent,
+	DialogContentText,
+	DialogActions,
+	Button,
+} from "@mui/material";
 import TabPanel from "../Components/TabPanel/TabPanel";
 import BudgetDashboard from "../Components/BudgetDashboard/BudgetDashboard";
 
@@ -24,10 +33,16 @@ const Main = () => {
 	const [accounts, setAccounts] = useState<Account[]>([]);
 	const [selectedAccounts, setSelectedAccounts] = useState<Account[]>([]);
 	const [transactions, setTransactions] = useState<Transaction[]>([]);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [itemToDelete, setItemToDelete] = useState<{
+		itemId: string;
+		accountCount: number;
+		institutionName: string;
+	} | null>(null);
 	const { accountsNeedRefresh, redirectLoading, dispatch } =
 		useContext(Context);
 	const alert = useAppAlert();
-	const { get, post } = useApiService(alert);
+	const { get, post, del } = useApiService(alert);
 
 	const generateToken = useCallback(async () => {
 		const data = await post("/api/create_link_token", {});
@@ -168,9 +183,43 @@ const Main = () => {
 		setSelectedAccounts(newSelectedAccounts);
 	};
 
-	const removeAccount = (accountId: string) => {
-		setAccounts((prev) => prev.filter((a) => a.id !== accountId));
-		setSelectedAccounts((prev) => prev.filter((a) => a.id !== accountId));
+	const handleRemoveItem = (itemId: string) => {
+		const accountsForItem = accounts.filter((a) => a.item_id === itemId);
+		const institutionName =
+			accountsForItem[0]?.institution_name || "Unknown Bank";
+		setItemToDelete({
+			itemId,
+			accountCount: accountsForItem.length,
+			institutionName,
+		});
+		setDeleteDialogOpen(true);
+	};
+
+	const confirmRemoveItem = async () => {
+		if (!itemToDelete) return;
+
+		try {
+			const data = await del(`/api/item/${itemToDelete.itemId}`);
+			if (data) {
+				// Remove all accounts associated with this item
+				setAccounts((prev) =>
+					prev.filter((a) => a.item_id !== itemToDelete.itemId)
+				);
+				setSelectedAccounts((prev) =>
+					prev.filter((a) => a.item_id !== itemToDelete.itemId)
+				);
+				alert.trigger(
+					`Successfully removed bank connection and ${data.deleted_accounts} accounts`,
+					"success"
+				);
+			}
+		} catch (error) {
+			console.error("Error removing item:", error);
+			alert.trigger("Failed to remove bank connection", "error");
+		} finally {
+			setDeleteDialogOpen(false);
+			setItemToDelete(null);
+		}
 	};
 
 	return (
@@ -200,7 +249,7 @@ const Main = () => {
 							accounts={accounts}
 							selectedAccounts={selectedAccounts}
 							selectDeselectAccount={selectDeselectAccount}
-							removeAccount={removeAccount}
+							removeItem={handleRemoveItem}
 						/>
 					</TabPanel>
 					<TabPanel value={tabIndex} index={1}>
@@ -217,6 +266,32 @@ const Main = () => {
 				severity={alert.severity}
 				onClose={alert.close}
 			/>
+
+			<Dialog
+				open={deleteDialogOpen}
+				onClose={() => setDeleteDialogOpen(false)}
+				aria-labelledby='delete-dialog-title'
+				aria-describedby='delete-dialog-description'
+			>
+				<DialogTitle id='delete-dialog-title'>
+					Remove Bank Connection
+				</DialogTitle>
+				<DialogContent>
+					<DialogContentText id='delete-dialog-description'>
+						Are you sure you want to remove the connection to{" "}
+						{itemToDelete?.institutionName}? This will delete all{" "}
+						{itemToDelete?.accountCount} account
+						{itemToDelete?.accountCount !== 1 ? "s " : " "}
+						associated with this bank and stop billing for these accounts.
+					</DialogContentText>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+					<Button onClick={confirmRemoveItem} color='error' variant='contained'>
+						Remove Bank Connection
+					</Button>
+				</DialogActions>
+			</Dialog>
 		</div>
 	);
 };

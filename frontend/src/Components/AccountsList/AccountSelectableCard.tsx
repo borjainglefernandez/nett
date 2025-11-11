@@ -5,25 +5,19 @@ import {
 	CardContent,
 	CardHeader,
 	Collapse,
-	IconButton,
 	styled,
-	Dialog,
-	DialogActions,
-	DialogTitle,
-	DialogContentText,
-	DialogContent,
 	Box,
 	Typography,
 	Switch,
 	TextField,
 } from "@mui/material";
+import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import Account from "../../Models/Account";
 import { Button } from "plaid-threads";
 import { useState } from "react";
 import formatDate from "../../Utils/DateUtils";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import DeleteIcon from "@mui/icons-material/Delete";
 import SavingsTwoToneIcon from "@mui/icons-material/SavingsTwoTone";
 import CategoryTwoToneIcon from "@mui/icons-material/CategoryTwoTone";
 import ClassTwoToneIcon from "@mui/icons-material/ClassTwoTone";
@@ -35,44 +29,33 @@ interface AccountSelectableCard {
 	account: Account;
 	isSelected: boolean;
 	selectDeselectAccount: (account: Account, select: boolean) => void;
-	removeAccount: (accountId: string) => void;
 }
 
-const ExpandMore = styled(IconButton)<{ expand: boolean }>(
-	({ theme, expand }) => ({
-		marginLeft: "auto",
-		transition: theme.transitions.create("transform", {
-			duration: theme.transitions.duration.shortest,
-		}),
-		transform: expand ? "rotate(180deg)" : "rotate(0deg)",
-	})
-);
+const ExpandMore = styled(
+	({ expand, ...other }: IconButtonProps & { expand: boolean }) => (
+		<IconButton {...other} />
+	)
+)(({ theme, expand }) => ({
+	marginLeft: "auto",
+	transition: theme.transitions.create("transform", {
+		duration: theme.transitions.duration.shortest,
+	}),
+	transform: expand ? "rotate(180deg)" : "rotate(0deg)",
+}));
 
 const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	account,
 	isSelected,
 	selectDeselectAccount,
-	removeAccount,
 }) => {
 	const alert = useAppAlert();
 	const { put, del } = useApiService(alert);
 	const [expanded, setExpanded] = useState(false);
-	const [openRemoveAccountDialog, setOpenRemoveAccountDialog] = useState(false);
 	const [isEditingName, setIsEditingName] = useState(false);
 	const [editableName, setEditableName] = useState(account.name);
 
 	const handleExpandClick = () => {
 		setExpanded(!expanded);
-	};
-
-	const handleAccountRemove = async () => {
-		const data = await del(`/api/account/${account.id}`);
-		if (data) {
-			alert.trigger("Account removed successfully.", "success");
-			removeAccount(account.id);
-			setOpenRemoveAccountDialog(false);
-		}
-		setOpenRemoveAccountDialog(false);
 	};
 
 	const handleNameUpdate = async () => {
@@ -89,28 +72,6 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 
 	return (
 		<>
-			<Dialog
-				open={openRemoveAccountDialog}
-				onClose={() => setOpenRemoveAccountDialog(false)}
-				aria-labelledby='alert-dialog-title'
-				aria-describedby='alert-dialog-description'
-			>
-				<DialogTitle id='alert-dialog-title'>
-					{`Are you sure you would like to remove ${account.name}?`}
-				</DialogTitle>
-				<DialogContent>
-					<DialogContentText id='alert-dialog-description'>
-						This action cannot be undone. You must re-add the account later.
-					</DialogContentText>
-				</DialogContent>
-				<DialogActions>
-					<Button onClick={() => handleAccountRemove()}>Delete</Button>
-					<Button secondary onClick={() => setOpenRemoveAccountDialog(false)}>
-						Cancel
-					</Button>
-				</DialogActions>
-			</Dialog>
-
 			<Card sx={{ boxShadow: 3, borderRadius: 2 }}>
 				<CardHeader
 					avatar={
@@ -185,13 +146,6 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 								checked={isSelected}
 								size='small'
 							/>
-							<IconButton
-								aria-label='remove account'
-								onClick={() => setOpenRemoveAccountDialog(true)}
-								sx={{ color: "error.main" }}
-							>
-								<DeleteIcon />
-							</IconButton>
 							<ExpandMore
 								expand={expanded}
 								onClick={handleExpandClick}

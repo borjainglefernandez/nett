@@ -1,44 +1,108 @@
-import { Grid2 } from "@mui/material";
-import { Typography, Box } from "@mui/material";
+import {
+	Grid,
+	Typography,
+	Box,
+	Card,
+	CardContent,
+	CardHeader,
+	Button,
+	Chip,
+} from "@mui/material";
 import Account from "../../Models/Account";
 import AccountSelectableCard from "./AccountSelectableCard";
-import { useState } from "react";
 
 interface AccountListProps {
 	accounts: Account[];
 	selectedAccounts: Account[];
 	selectDeselectAccount: (account: Account, select: boolean) => void;
-	removeAccount: (accountId: string) => void;
+	removeItem: (itemId: string) => void;
 }
 
 const AccountList: React.FC<AccountListProps> = ({
 	accounts: accounts,
 	selectedAccounts,
 	selectDeselectAccount,
-	removeAccount,
+	removeItem,
 }) => {
 	if (accounts.length === 0) {
 		return (
 			<Box textAlign='center' mt={4} width='100%'>
 				<Typography variant='h6' color='text.secondary'>
-					No accounts available to display.
+					No accounts found.
 				</Typography>
 			</Box>
 		);
 	}
 
+	// Group accounts by item_id
+	const groupedAccounts = accounts.reduce((groups, account) => {
+		const itemId = account.item_id;
+		if (!groups[itemId]) {
+			groups[itemId] = {
+				itemId,
+				institutionName: account.institution_name,
+				logo: account.logo,
+				accounts: [],
+			};
+		}
+		groups[itemId].accounts.push(account);
+		return groups;
+	}, {} as Record<string, { itemId: string; institutionName: string; logo: string | null; accounts: Account[] }>);
+
 	return (
-		<Grid2 container spacing={3} alignItems='flex-start'>
-			{accounts.map((account: Account, i: number) => (
-				<AccountSelectableCard
-					key={i}
-					selectDeselectAccount={selectDeselectAccount}
-					account={account}
-					isSelected={selectedAccounts.includes(account)}
-					removeAccount={(id) => removeAccount(id)}
-				/>
+		<Box>
+			{Object.values(groupedAccounts).map((group) => (
+				<Card key={group.itemId} sx={{ mb: 3 }}>
+					<CardHeader
+						title={
+							<Box
+								display='flex'
+								alignItems='center'
+								justifyContent='space-between'
+							>
+								<Box display='flex' alignItems='center' gap={2}>
+									{group.logo && (
+										<img
+											src={group.logo}
+											alt={group.institutionName}
+											style={{ width: 32, height: 32 }}
+										/>
+									)}
+									<Typography variant='h6'>{group.institutionName}</Typography>
+									<Chip
+										label={`${group.accounts.length} account${
+											group.accounts.length !== 1 ? "s" : ""
+										}`}
+										size='small'
+										color='primary'
+									/>
+								</Box>
+								<Button
+									variant='outlined'
+									color='error'
+									size='small'
+									onClick={() => removeItem(group.itemId)}
+								>
+									Remove Bank Connection
+								</Button>
+							</Box>
+						}
+					/>
+					<CardContent>
+						<Grid container spacing={2}>
+							{group.accounts.map((account: Account, i: number) => (
+								<AccountSelectableCard
+									key={account.id}
+									selectDeselectAccount={selectDeselectAccount}
+									account={account}
+									isSelected={selectedAccounts.includes(account)}
+								/>
+							))}
+						</Grid>
+					</CardContent>
+				</Card>
 			))}
-		</Grid2>
+		</Box>
 	);
 };
 

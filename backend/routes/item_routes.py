@@ -21,6 +21,7 @@ from utils.error_utils import (
     error_response,
 )
 from plaid.model.item_get_request import ItemGetRequest
+from plaid.model.item_remove_request import ItemRemoveRequest
 from plaid.model.accounts_get_request import AccountsGetRequest
 from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
 from models.transaction.payment_channel import PaymentChannel
@@ -67,9 +68,27 @@ def create_item():
     get_item_request = ItemGetRequest(access_token=access_token)
     get_item_response = plaid_client.item_get(get_item_request)
     item_dict = get_item_response["item"].to_dict()
+    item_id = item_dict["item_id"]
 
+    # Check if item already exists (item IDs are persistent in Plaid)
+    existing_item = Item.query.filter_by(id=item_id).first()
+
+    if existing_item:
+        # Item exists - reactivate it and return its existing accounts
+        logger.info(f"🔄 Item {item_id} already exists, reactivating")
+        existing_item.access_token = access_token
+        existing_item.last_updated = datetime.now()
+        db.session.commit()
+
+        # Return existing active accounts for this item
+        existing_accounts = Account.query.filter_by(item_id=item_id, active=True).all()
+        logger.info(f"📊 Returning {len(existing_accounts)} existing active accounts")
+        return jsonify([account.to_dict() for account in existing_accounts])
+
+    # Item doesn't exist - create new item
+    logger.info(f"✨ Creating new item: {item_id}")
     item_dict["access_token"] = access_token
-    item_dict["id"] = item_dict["item_id"]
+    item_dict["id"] = item_id
     item = create_model_instance_from_dict(Item, item_dict, fail_on_duplicate=False)
 
     # Get item's institution details
@@ -102,10 +121,55 @@ def create_item():
     )
 
     # Add item's accounts
+    # Check account limit before adding new accounts (count total accounts, not just active)
+    # This is because Plaid charges per account ID, even if we're reactivating existing accounts
+    existing_accounts = Account.query.all()
+    existing_total_accounts = len(existing_accounts)
+    existing_account_ids = {account.id for account in existing_accounts}
+    existing_account_names = {
+        account.original_name for account in existing_accounts if account.original_name
+    }
     logger.info("🔍 Starting account retrieval from Plaid")
     account_get_request = AccountsGetRequest(access_token=access_token)
     account_balance_response = plaid_client.accounts_get(account_get_request)
     plaid_accounts = account_balance_response["accounts"]
+
+    # Determine how many *new* Plaid account IDs would be added
+    # Existing accounts (by id or original_name) are considered reactivations
+    new_plaid_account_ids = []
+    for plaid_account in plaid_accounts:
+        account_id = plaid_account.get("persistent_account_id") or plaid_account.get(
+            "account_id"
+        )
+        official_name = plaid_account.get("official_name") or ""
+        name = plaid_account.get("name") or ""
+        account_name_part = (
+            official_name if official_name else (name if name else "Unnamed")
+        )
+        account_name = account_name_part + "-" + plaid_account.get("mask", "")
+
+        if (
+            account_id not in existing_account_ids
+            and account_name not in existing_account_names
+        ):
+            new_plaid_account_ids.append(account_id)
+            existing_account_ids.add(account_id)
+            if account_name:
+                existing_account_names.add(account_name)
+
+    # For sandbox environment, allow up to 15 accounts to accommodate test data
+    max_accounts = 15 if os.getenv("PLAID_ENV", "sandbox") == "sandbox" else 10
+
+    if existing_total_accounts + len(new_plaid_account_ids) > max_accounts:
+        return error_response(
+            HTTPStatus.BAD_REQUEST,
+            (
+                "Account limit exceeded. You currently have "
+                f"{existing_total_accounts} total accounts and Plaid is providing "
+                f"{len(new_plaid_account_ids)} new account IDs. Maximum allowed is "
+                f"{max_accounts} accounts."
+            ),
+        )
 
     logger.info(f"📊 Retrieved {len(plaid_accounts)} accounts from Plaid")
 
@@ -115,41 +179,72 @@ def create_item():
         logger.info(f"🔄 Processing account {idx}/{len(plaid_accounts)}")
         logger.debug(f"   Full account data: {plaid_account}")
 
-        account_name = (
-            plaid_account.get("official_name", plaid_account.get("name", "Unnamed"))
-            + "-"
-            + plaid_account.get("mask", "")
+        # Handle None values for account name fields
+        official_name = plaid_account.get("official_name") or ""
+        name = plaid_account.get("name") or ""
+        account_name_part = (
+            official_name if official_name else (name if name else "Unnamed")
         )
+
+        account_name = account_name_part + "-" + plaid_account.get("mask", "")
 
         account_id = plaid_account.get("persistent_account_id") or plaid_account.get(
             "account_id"
         )
         logger.info(f"   Account ID: {account_id}, Name: {account_name}")
 
-        account_dict = {
-            "id": account_id,
-            "name": account_name,
-            "original_name": account_name,
-            "balance": balances.get("available") or 0.0,
-            "limit": balances.get("limit") or 0.0,
-            "last_updated": datetime.now(),
-            "institution_id": institution.id,
-            "item_id": item.id,
-            "account_type": str(plaid_account.get("type")),
-            "account_subtype": str(plaid_account.get("subtype")),
-        }
+        # Check if account already exists (active or inactive)
+        # Look for accounts by ID or original_name (in case Plaid gave a new ID on reconnect)
+        existing_account = Account.query.filter(
+            (Account.id == account_id) | (Account.original_name == account_name)
+        ).first()
 
-        logger.debug(f"   Account dict to create: {account_dict}")
+        if existing_account:
+            # Reactivate the existing account and update its data
+            logger.info(f"   🔄 Reactivating existing account: {account_id}")
+            account_update_dict = {
+                "id": account_id,
+                "active": True,
+                "name": account_name,
+                "balance": balances.get("available") or 0.0,
+                "limit": balances.get("limit") or 0.0,
+                "last_updated": datetime.now(),
+                "institution_id": institution.id,
+                "item_id": item.id,
+                "account_type": str(plaid_account.get("type")),
+                "account_subtype": str(plaid_account.get("subtype")),
+            }
+            update_model_instance_from_dict(existing_account, account_update_dict)
+            db.session.commit()
+            accounts.append(existing_account)
+        else:
+            # Create new account
+            logger.info(f"   ✨ Creating new account: {account_id}")
+            account_dict = {
+                "id": account_id,
+                "name": account_name,
+                "original_name": account_name,
+                "balance": balances.get("available") or 0.0,
+                "limit": balances.get("limit") or 0.0,
+                "last_updated": datetime.now(),
+                "institution_id": institution.id,
+                "item_id": item.id,
+                "account_type": str(plaid_account.get("type")),
+                "account_subtype": str(plaid_account.get("subtype")),
+                "active": True,
+            }
 
-        try:
-            account = create_model_instance_from_dict(
-                Account, account_dict, fail_on_duplicate=False
-            )
-            logger.info(f"   ✅ Account created successfully: {account.id}")
-            accounts.append(account)
-        except Exception as e:
-            logger.error(f"   ❌ Failed to create account: {e}", exc_info=True)
-            raise
+            logger.debug(f"   Account dict to create: {account_dict}")
+
+            try:
+                account = create_model_instance_from_dict(
+                    Account, account_dict, fail_on_duplicate=False
+                )
+                logger.info(f"   ✅ Account created successfully: {account.id}")
+                accounts.append(account)
+            except Exception as e:
+                logger.error(f"   ❌ Failed to create account: {e}", exc_info=True)
+                raise
 
     logger.info(f"🎉 Successfully created {len(accounts)} accounts")
     return jsonify([account.to_dict() for account in accounts])
@@ -159,6 +254,69 @@ def create_item():
 @safe_route
 def get_items():
     return jsonify(list_instances_of_model(Item))
+
+
+@item_bp.route("/<item_id>", methods=["DELETE"])
+@safe_route
+def delete_item(item_id: str):
+    """Delete an item and all its associated accounts from Plaid and database"""
+    plaid_client = current_app.config["plaid_client"]
+
+    # Get the item from database
+    item = Item.query.filter_by(id=item_id).first()
+    if not item:
+        return error_response(HTTPStatus.NOT_FOUND, f"Item {item_id} not found.")
+
+    try:
+        # Call Plaid API to remove the item (stops billing)
+        logger.info(f"🗑️ Removing item {item_id} from Plaid")
+        logger.info(f"🔍 Using access_token: {item.access_token[:20]}...")
+        remove_request = ItemRemoveRequest(access_token=item.access_token)
+
+        try:
+            plaid_client.item_remove(remove_request)
+            logger.info(f"✅ Successfully removed item {item_id} from Plaid")
+        except Exception as plaid_error:
+            logger.error(f"❌ Plaid API error: {plaid_error}")
+            raise
+
+        # Get all accounts associated with this item
+        accounts_to_delete = Account.query.filter_by(item_id=item_id).all()
+        account_count = len(accounts_to_delete)
+
+        # Delete all accounts from database
+        for account in accounts_to_delete:
+            db.session.delete(account)
+
+        # Delete the item from database
+        db.session.delete(item)
+        db.session.commit()
+
+        logger.info(
+            f"✅ Deleted item {item_id} and {account_count} associated accounts from database"
+        )
+
+        return (
+            jsonify(
+                {
+                    "message": f"Successfully removed bank connection and {account_count} accounts",
+                    "deleted_accounts": account_count,
+                    "item_id": item_id,
+                }
+            ),
+            HTTPStatus.OK,
+        )
+
+    except Exception as e:
+        import traceback
+
+        error_details = traceback.format_exc()
+        logger.error(f"❌ Failed to remove item {item_id}: {e}")
+        logger.error(f"❌ Full traceback: {error_details}")
+        return error_response(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            f"Failed to remove bank connection: {str(e)}",
+        )
 
 
 @item_bp.route("/<item_id>/sync", methods=["POST"])
