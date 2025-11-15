@@ -1,280 +1,427 @@
-# Plaid quickstart
+# Nett
 
-This repository accompanies Plaid's [**quickstart guide**][quickstart].
+Nett is a financial application that integrates with Plaid to manage bank accounts, transactions, budgets, and financial data.
 
-Here you'll find full example integration apps using our [**client libraries**][libraries].
+## Table of Contents
 
-This Quickstart is designed to show as many products and configurations as possible, including all five officially supported client libraries and multiple Plaid APIs, against a React frontend. 
-
-If you prefer a non-React frontend platform, or a more minimal backend in one language with one endpoint, see the [Tiny Quickstart](https://github.com/plaid/tiny-quickstart), which shows a simpler backend and is available for JavaScript, Next.js, React, and React Native frontends.
-
-For Identity Verification, see the [Identity Verification Quickstart](https://github.com/plaid/idv-quickstart). 
-
-For Income, see the [Income sample app](https://github.com/plaid/income-sample). 
-
-For a more in-depth Transfer Quickstart, see the [Transfer Quickstart](https://github.com/plaid/transfer-quickstart) (Node only).
-
-![Plaid quickstart app](/assets/quickstart.jpeg)
-
-## Table of contents
-
-<!-- toc -->
-
-- [1. Clone the repository](#1-clone-the-repository)
-  - [Special instructions for Windows](#special-instructions-for-windows)
-- [2. Set up your environment variables](#2-set-up-your-environment-variables)
-- [3. Run the quickstart](#3-run-the-quickstart)
-  - [Run without Docker](#run-without-docker)
-    - [Pre-requisites](#pre-requisites)
-    - [1. Running the backend](#1-running-the-backend)
-      - [Node](#node)
-      - [Python](#python)
-      - [Ruby](#ruby)
-      - [Go](#go)
-      - [Java](#java)
-      - [.NET](#net) (community support only)
-    - [2. Running the frontend](#2-running-the-frontend)
-  - [Run with Docker](#run-with-docker)
-    - [Pre-requisites](#pre-requisites-1)
-    - [Running](#running-1)
-      - [Start the container](#start-the-container)
-      - [View the logs](#view-the-logs)
-      - [Stop the container](#stop-the-container)
-- [Test credentials](#test-credentials)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Environment Setup](#environment-setup)
+  - [Running the Application](#running-the-application)
+- [Testing](#testing)
+  - [Backend Testing](#backend-testing)
+  - [Frontend Testing](#frontend-testing)
+  - [Test Configuration](#test-configuration)
+  - [Coverage Goals](#coverage-goals)
+  - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
-- [Testing OAuth](#testing-oauth)
+- [Resources](#resources)
 
-<!-- tocstop -->
+## Getting Started
 
-## 1. Clone the repository
+### Prerequisites
 
-Using https:
+- Python 3.8+ (for backend)
+- Node.js 14+ and npm (for frontend)
+- Docker and Docker Compose (optional, for containerized deployment)
+- Plaid API credentials ([Get them here](https://dashboard.plaid.com/developers/keys))
 
-```bash
-git clone https://github.com/plaid/quickstart
-cd quickstart
-```
+### Environment Setup
 
-Alternatively, if you use ssh:
-
-```bash
-git clone git@github.com:plaid/quickstart.git
-cd quickstart
-```
-
-#### Special instructions for Windows
-
-Note - because this repository makes use of symbolic links, to run this on a Windows machine, make sure you have checked the "enable symbolic links" box when you download Git to your local machine. Then you can run the above commands to clone the quickstart. Otherwise, you may open your Git Bash terminal as an administrator and use the following command when cloning the project
+1. Clone the repository:
 
 ```bash
-git clone -c core.symlinks=true https://github.com/plaid/quickstart
+git clone <repository-url>
+cd Nett
 ```
 
-## 2. Set up your environment variables
+2. Set up environment variables:
 
 ```bash
 cp .env.example .env
 ```
 
-Copy `.env.example` to a new file called `.env` and fill out the environment variables inside. At
-minimum `PLAID_CLIENT_ID` and `PLAID_SECRET` must be filled out. Get your Client ID and secrets from
-the dashboard: [https://dashboard.plaid.com/developers/keys](https://dashboard.plaid.com/developers/keys)
+Edit `.env` and fill in your Plaid credentials:
 
-> NOTE: `.env` files are a convenient local development tool. Never run a production application
-> using an environment file with secrets in it.
+- `PLAID_CLIENT_ID`: Your Plaid Client ID
+- `PLAID_SECRET`: Your Plaid Secret
+- `PLAID_ENV`: Environment (`sandbox`, `development`, or `production`)
+- `PLAID_PRODUCTS`: Comma-separated list of products (e.g., `transactions`)
+- `PLAID_COUNTRY_CODES`: Comma-separated list of country codes (e.g., `US`)
+- `PLAID_REDIRECT_URI`: Optional redirect URI for OAuth (e.g., `http://localhost:3000/`)
 
-## 3. Run the Quickstart
+> **Note**: `.env` files are for local development only. Never commit secrets or use `.env` files in production.
 
-There are two ways to run the various language quickstarts in this repository. You can choose to run the
-code directly or you can run it in Docker. If you would like to run the code via Docker, skip to the
-[Run with Docker](#run-with-docker) section.
+### Running the Application
 
-### Run without Docker
+#### Option 1: Run with Docker
 
-#### Pre-requisites
-
-- The language you intend to use is installed on your machine and available at your command line.
-  This repo should generally work with active LTS versions of each language such as node >= 14,
-  python >= 3.8, ruby >= 2.6, etc.
-- Your environment variables populated in `.env`
-- [npm](https://www.npmjs.com/get-npm)
-- If using Windows, a command line utility capable of running basic Unix shell commands
-
-#### 1. Running the backend
-
-Once started with one of the commands below, the quickstart will be running on http://localhost:8000 for the backend. Enter the additional commands in step 2 to run the frontend which will run on http://localhost:3000.
-
-##### Node
+1. Start the containers:
 
 ```bash
-$ cd ./node
-$ npm install
-$ ./start.sh
+make up
 ```
 
-##### Python
+The backend will be available at `http://localhost:8000` and the frontend at `http://localhost:3000`.
 
-**:warning: As `python2` has reached its end of life, only `python3` is supported.**
+2. View logs:
 
 ```bash
-cd ./python
+make logs
+```
 
-# If you use virtualenv
-# virtualenv venv
-# source venv/bin/activate
+3. Stop the containers:
 
-pip3 install -r requirements.txt
+```bash
+make stop
+```
+
+#### Option 2: Run without Docker
+
+**Backend:**
+
+```bash
+cd backend
+pip install -r requirements.txt
 ./start.sh
 ```
 
-If you get this error message:
+The backend will run on `http://localhost:8000`.
 
-```txt
-ssl.SSLError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed (_ssl.c:749)
-```
-
-You may need to run the following command in your terminal for your particular version of python in order to install SSL certificates:
+**Frontend:**
 
 ```bash
-# examples:
-open /Applications/Python\ 3.9/Install\ Certificates.command
-# or
-open /Applications/Python\ 3.6/Install\ Certificates.command
-```
-
-##### Ruby
-
-```bash
-cd ./ruby
-bundle
-./start.sh
-```
-
-##### Go
-
-```bash
-cd ./go
-go build
-./start.sh
-```
-
-##### Java
-
-```bash
-cd ./java
-mvn clean package
-./start.sh
-```
-
-##### .NET
-
-A community-supported implementation of the Plaid Quickstart using the [Going.Plaid](https://github.com/viceroypenguin/Going.Plaid) client library can be found at [PlaidQuickstartBlazor](https://github.com/jcoliz/PlaidQuickstartBlazor). Note that Plaid does not provide first-party support for .NET client libraries and that this Quickstart and client library are not created, reviewed, or supported by Plaid. 
-
-#### 2. Running the frontend
-
-```bash
-cd ./frontend
-npm ci
+cd frontend
+npm install
 npm start
 ```
 
-### Run with Docker
+The frontend will run on `http://localhost:3000`.
 
-#### Pre-requisites
+### Test Credentials
 
-- `make` available at your command line
-- Docker installed and running on your machine: https://docs.docker.com/get-docker/
-- Your environment variables populated in `.env`
-- If using Windows, a working Linux installation on Windows 10. If you are using Windows and do not already have WSL or Cygwin configured, we recommend [running without Docker](#run-without-docker).
+When using Plaid Sandbox, you can use these test credentials:
 
-#### Running
+- **Username**: `user_good`
+- **Password**: `pass_good`
+- **2FA Code**: `1234`
 
-There are three basic `make` commands available
+For more realistic transaction data:
 
-- `up`: builds and starts the container
-- `logs`: tails logs
-- `stop`: stops the container
+- **Username**: `user_transactions_dynamic`
+- **Password**: Any non-blank string
 
-Each of these should be used with a `language` argument, which is one of `node`, `python`, `ruby`,
-`java`, or `go`. If unspecified, the default is `node`.
+For credit and underwriting products, see [Plaid's test credentials documentation](https://plaid.com/docs/sandbox/test-credentials/#credit-and-income-testing-credentials).
 
-##### Start the container
+## Testing
 
-```bash
-make up language=node
-```
+This document provides comprehensive information about the testing suite for the Nett application.
 
-The quickstart backend is now running on http://localhost:8000 and frontend on http://localhost:3000.
+### Overview
 
-If you make changes to one of the server files such as `index.js`, `server.go`, etc, or to the
-`.env` file, simply run `make up language=node` again to rebuild and restart the container.
+The testing suite includes:
 
-If you experience a Docker connection error when running the command above, try the following:
+- **Backend Tests**: Unit tests, integration tests, and E2E tests using pytest
+- **Frontend Tests**: Component tests, hook tests, and integration tests using Jest and React Testing Library
+- **Test Coverage**: Comprehensive coverage reporting for both backend and frontend
 
-- Make sure Docker is running
-- Try running the command prefixed with `sudo`
+### Backend Testing
 
-##### View the logs
+#### Setup
+
+1. Install test dependencies:
 
 ```bash
-make logs language=node
+cd backend
+pip install -r requirements.txt
 ```
 
-##### Stop the container
+2. Run tests:
 
 ```bash
-make stop language=node
+# Run all tests
+./run_tests.sh
+
+# Run specific test types
+./run_tests.sh unit          # Unit tests only
+./run_tests.sh integration   # Integration tests only
+./run_tests.sh e2e          # E2E tests only
+./run_tests.sh coverage     # With coverage report
+./run_tests.sh fast         # Fast tests only (exclude slow)
 ```
 
-## Test credentials
+#### Test Structure
 
-In Sandbox, you can log in to any supported institution using `user_good` as the username and `pass_good` as the password. If prompted to enter a 2-factor authentication code, enter `1234`. In Production, use real-life credentials.
+```
+backend/tests/
+├── conftest.py                    # Test fixtures and configuration
+├── test_models.py                 # Model tests
+├── test_utils.py                  # Utility function tests
+├── unit/                          # Unit tests (mocked dependencies)
+│   ├── test_account_routes.py
+│   └── test_item_routes.py
+├── integration/                   # Integration tests (real Plaid sandbox)
+│   └── test_plaid_integration.py
+└── e2e/                          # End-to-end tests
+    └── test_full_flow.py
+```
 
-### Transactions test credentials
-For Transactions, you will get the most realistic results using `user_transactions_dynamic` as the username, and any non-blank string as the password. For more details on the special capabilities of this test user, see the [docs](https://plaid.com/docs/transactions/transactions-data/#testing-pending-and-posted-transactions).
+#### Test Categories
 
-### Credit test credentials
-For credit and underwriting products like Assets and Statements, you will get the most realistic results using one of the [credit and underwriting tests credentials](https://plaid.com/docs/sandbox/test-credentials/#credit-and-income-testing-credentials), like `user_bank_income` / `{}`.
+- **Unit Tests** (`@pytest.mark.unit`): Fast tests with mocked dependencies
+- **Integration Tests** (`@pytest.mark.integration`): Tests with real Plaid sandbox API
+- **E2E Tests** (`@pytest.mark.e2e`): Complete application flow tests
+- **Slow Tests** (`@pytest.mark.slow`): Tests that take longer to run
+
+#### Key Test Scenarios
+
+1. **Account Management**:
+
+   - Account creation and reactivation
+   - Soft deletion and reactivation
+   - Account limit enforcement (10 production, 15 sandbox)
+
+2. **Item Management**:
+
+   - Item creation with Plaid integration
+   - Item deletion (removes from Plaid and database)
+   - Account grouping by item_id
+
+3. **Transaction Sync**:
+
+   - Transaction fetching and storage
+   - Error handling and retries
+
+4. **Error Handling**:
+   - Plaid API errors
+   - Network errors
+   - Database errors
+
+#### Running Backend Tests
+
+```bash
+# All tests
+pytest
+
+# Specific markers
+pytest -m unit
+pytest -m integration
+pytest -m e2e
+
+# With coverage
+pytest --cov=. --cov-report=html
+
+# Fast tests only
+pytest -m "not slow"
+```
+
+### Frontend Testing
+
+#### Setup
+
+1. Install dependencies:
+
+```bash
+cd frontend
+npm install
+```
+
+2. Run tests:
+
+```bash
+# Run all tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Run in CI mode
+npm run test:ci
+```
+
+#### Test Structure
+
+```
+frontend/src/
+├── setupTests.ts                  # Test setup and configuration
+├── test-utils.tsx                 # Custom render function and utilities
+├── mocks/                         # API mocking
+│   ├── server.ts
+│   └── handlers.ts
+├── Components/
+│   └── AccountsList/
+│       └── __tests__/
+│           ├── AccountList.test.tsx
+│           └── AccountSelectableCard.test.tsx
+├── Pages/
+│   └── __tests__/
+│       └── Main.test.tsx
+├── hooks/
+│   └── __tests__/
+│       ├── apiService.test.ts
+│       └── appAlert.test.ts
+└── __tests__/
+    └── integration/
+        └── ItemDeletion.test.tsx
+```
+
+#### Test Categories
+
+- **Component Tests**: Individual component functionality
+- **Hook Tests**: Custom hook behavior
+- **Integration Tests**: Component interaction and API integration
+- **Page Tests**: Complete page functionality
+
+#### Key Test Scenarios
+
+1. **Account List**:
+
+   - Account grouping by item_id
+   - Account selection and deselection
+   - Remove bank connection flow
+
+2. **Account Cards**:
+
+   - Account information display
+   - Account name editing
+   - Expand/collapse functionality
+
+3. **Item Deletion**:
+
+   - Confirmation dialog
+   - API integration
+   - Error handling
+
+4. **API Service**:
+   - HTTP method handling
+   - Error handling
+   - Alert triggering
+
+#### Running Frontend Tests
+
+```bash
+# All tests
+npm test
+
+# With coverage
+npm run test:coverage
+
+# CI mode
+npm run test:ci
+```
+
+### Test Configuration
+
+#### Backend Configuration
+
+- **Database**: In-memory SQLite for tests
+- **Plaid Environment**: Sandbox for integration tests
+- **Coverage**: HTML and terminal reports
+- **Markers**: Unit, integration, E2E, slow
+
+#### Frontend Configuration
+
+- **Test Environment**: Jest with React Testing Library
+- **API Mocking**: Mock Service Worker (MSW)
+- **Coverage**: Comprehensive coverage reporting
+- **Mocking**: Components, hooks, and API calls
+
+### Coverage Goals
+
+- **Backend**: 80%+ code coverage
+- **Frontend**: 70%+ code coverage
+- **Critical Paths**: 100% coverage
+
+### Best Practices
+
+#### Backend Testing
+
+1. Use fixtures for common test data
+2. Mock external dependencies (Plaid API)
+3. Test error scenarios
+4. Use descriptive test names
+5. Group related tests in classes
+
+#### Frontend Testing
+
+1. Test user interactions, not implementation details
+2. Use custom render function with providers
+3. Mock external dependencies
+4. Test accessibility
+5. Use data-testid for reliable element selection
+
+### Troubleshooting Tests
+
+#### Common Issues
+
+1. **Test Database Issues**: Ensure in-memory database is used
+2. **Plaid API Issues**: Check sandbox credentials
+3. **Mock Issues**: Verify mock setup and teardown
+4. **Coverage Issues**: Check test file inclusion
+
+#### Debug Tips
+
+1. Use `pytest -v` for verbose output
+2. Use `pytest --pdb` for debugging
+3. Check test logs for detailed error information
+4. Verify mock calls with `assert_called_with`
+
+### Continuous Integration
+
+The test suite is designed to run in CI/CD pipelines:
+
+- **Backend**: Uses pytest with coverage reporting
+- **Frontend**: Uses Jest with coverage reporting
+- **Environment**: Sandbox for safe testing
+- **Parallel**: Tests can run in parallel for speed
+
+### Contributing
+
+When adding new features:
+
+1. Write tests first (TDD approach)
+2. Ensure all tests pass
+3. Maintain or improve coverage
+4. Update this documentation if needed
 
 ## Troubleshooting
 
 ### Link fails in Production with "something went wrong" / `INVALID_SERVER_ERROR` but works in Sandbox
 
 If Link works in Sandbox but fails in Production, the error is most likely one of the following:
-1) You need to set a use case for Link, which you can do in the Plaid Dashboard under [Link -> Customization -> Data Transparency Messaging](https://dashboard.plaid.com/link/data-transparency-v5).
-2) You don't yet have OAuth access for the institution you selected. This is especially common if the institution is Chase or Charles Schwab, which have longer OAuth registration turnarounds. To check your OAuth registration status and see if you have any required action items, see the [US OAuth Institutions page](https://dashboard.plaid.com/settings/compliance/us-oauth-institutions) in the Dashboard.
-   
+
+1. You need to set a use case for Link, which you can do in the Plaid Dashboard under [Link -> Customization -> Data Transparency Messaging](https://dashboard.plaid.com/link/data-transparency-v5).
+2. You don't yet have OAuth access for the institution you selected. This is especially common if the institution is Chase or Charles Schwab, which have longer OAuth registration turnarounds. To check your OAuth registration status and see if you have any required action items, see the [US OAuth Institutions page](https://dashboard.plaid.com/settings/compliance/us-oauth-institutions) in the Dashboard.
+
 ### Can't get a link token, or API calls are 400ing
 
-View the server logs to see the associated error message with detailed troubleshooting instructions. If you can't view logs locally, view them via the [Dashboard activity logs](https://dashboard.plaid.com/activity/logs). 
+View the server logs to see the associated error message with detailed troubleshooting instructions. If you can't view logs locally, view them via the [Dashboard activity logs](https://dashboard.plaid.com/activity/logs).
 
 ### Works only when `PLAID_REDIRECT_URI` is not specified
+
 Make sure to add the redirect URI to the Allowed Redirect URIs list in the [Plaid Dashboard](https://dashboard.plaid.com/team/api).
 
 ### "Connectivity not supported"
 
-If you get a "Connectivity not supported" error after selecting a financial institution in Link, you probably specified some products in your .env file that the target financial institution doesn't support. Remove the unsupported products and try again.
+If you get a "Connectivity not supported" error after selecting a financial institution in Link, you probably specified some products in your `.env` file that the target financial institution doesn't support. Remove the unsupported products and try again.
 
 ### "You need to update your app" or "institution not supported"
 
-If you get a "You need to update your app" or "institution not supported" error after selecting a financial institution in Link, you're probably running the Quickstart in Production and attempting to link an institution, such as Chase or Wells Fargo, that requires an OAuth-based connection. In order to make OAuth connections to US-based institutions in Production, you must have full Production access approval, and certain institutions may also require additional approvals before you can be enabled. To use this institution, [apply for full Production access](https://dashboard.plaid.com/overview/production) and see the [OAuth insitutions page](https://dashboard.plaid.com/team/oauth-institutions) for any other required steps and to track your OAuth enablement status.
+If you get a "You need to update your app" or "institution not supported" error after selecting a financial institution in Link, you're probably running the application in Production and attempting to link an institution, such as Chase or Wells Fargo, that requires an OAuth-based connection. In order to make OAuth connections to US-based institutions in Production, you must have full Production access approval, and certain institutions may also require additional approvals before you can be enabled. To use this institution, [apply for full Production access](https://dashboard.plaid.com/overview/production) and see the [OAuth institutions page](https://dashboard.plaid.com/team/oauth-institutions) for any other required steps and to track your OAuth enablement status.
 
 ### "oauth uri does not contain a valid oauth_state_id query parameter"
 
 If you get the console error "oauth uri does not contain a valid oauth_state_id query parameter", you are attempting to initialize Link with a redirect uri when it is not necessary to do so. The `receivedRedirectUri` should not be set when initializing Link for the first time. It is used when initializing Link for the second time, after returning from the OAuth redirect.
 
-## Testing OAuth 
+### Testing OAuth
 
-Some institutions require an OAuth redirect
-authentication flow, where the end user is redirected to the bank’s website or mobile app to
-authenticate. 
+Some institutions require an OAuth redirect authentication flow, where the end user is redirected to the bank's website or mobile app to authenticate.
 
 To test the OAuth flow in Sandbox, select any institution that uses an OAuth connection with Plaid (a partial list can be found on the [Dashboard OAuth Institutions page](https://dashboard.plaid.com/team/oauth-institutions)), or choose 'Platypus OAuth Bank' from the list of financial institutions in Plaid Link.
 
-### Testing OAuth with a redirect URI (optional)
+#### Testing OAuth with a redirect URI (optional)
 
-To test the OAuth flow in Sandbox with a [redirect URI](https://www.plaid.com/docs/link/oauth/#create-and-register-a-redirect-uri), you should set `PLAID_REDIRECT_URI=http://localhost:3000/` in `.env`. You will also need to register this localhost redirect URI in the
-[Plaid dashboard under Developers > API > Allowed redirect URIs][dashboard-api-section]. It is not required to configure a redirect URI in the .env file to use OAuth with the Quickstart. 
+To test the OAuth flow in Sandbox with a [redirect URI](https://www.plaid.com/docs/link/oauth/#create-and-register-a-redirect-uri), you should set `PLAID_REDIRECT_URI=http://localhost:3000/` in `.env`. You will also need to register this localhost redirect URI in the [Plaid dashboard under Developers > API > Allowed redirect URIs](https://dashboard.plaid.com/developers/api). It is not required to configure a redirect URI in the `.env` file to use OAuth with the application.
 
 #### Instructions for using https with localhost
 
@@ -299,31 +446,18 @@ mkcert -install
 mkcert localhost
 ```
 
-This will create a certificate file localhost.pem and a key file localhost-key.pem inside your client folder.
+This will create a certificate file `localhost.pem` and a key file `localhost-key.pem` inside your frontend folder.
 
-Then in the package.json file in the frontend folder, replace this line on line 28
+Then in the `package.json` file in the frontend folder, the start script should already be configured to use HTTPS with these certificates.
 
-```bash
-"start": "react-scripts start",
-```
+After starting up the application, you can now view it at `https://localhost:3000`. If you are on Windows, you may still get an invalid certificate warning on your browser. If so, click on "advanced" and proceed. Also on Windows, the frontend may still try to load `http://localhost:3000` and you may have to access `https://localhost:3000` manually.
 
-with this line instead:
+## Resources
 
-```bash
-"start": "HTTPS=true SSL_CRT_FILE=localhost.pem SSL_KEY_FILE=localhost-key.pem react-scripts start",
-```
-
-After starting up the Quickstart, you can now view it at https://localhost:3000. If you are on Windows, you
-may still get an invalid certificate warning on your browser. If so, click on "advanced" and proceed. Also on Windows, the frontend may still try to load http://localhost:3000 and you may have to access https://localhost:3000 manually.
-
-[quickstart]: https://plaid.com/docs/quickstart
-[libraries]: https://plaid.com/docs/api/libraries
-[payment-initiation]: https://plaid.com/docs/payment-initiation/
-[node-example]: /node
-[ruby-example]: /ruby
-[python-example]: /python
-[java-example]: /java
-[go-example]: /go
-[docker]: https://www.docker.com
-[dashboard-api-section]: https://dashboard.plaid.com/developers/api
-[contact-sales]: https://plaid.com/contact
+- [Plaid Documentation](https://plaid.com/docs/)
+- [Plaid Quickstart Guide](https://plaid.com/docs/quickstart)
+- [Plaid Client Libraries](https://plaid.com/docs/api/libraries)
+- [pytest Documentation](https://docs.pytest.org/)
+- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
+- [Jest Documentation](https://jestjs.io/docs/getting-started)
+- [Mock Service Worker](https://mswjs.io/)

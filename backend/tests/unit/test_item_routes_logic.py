@@ -193,6 +193,3 @@ class TestItemRoutesLogic:
             reactivated_account = Account.query.get(new_account_id)
             assert reactivated_account.active is True
             assert reactivated_account.balance == Decimal("2000.00")
-
-
-

@@ -176,5 +176,3 @@ class TestPeriodUtils:
 
             periods = get_totals_by_frequency(BudgetFrequency.MONTHLY)
             assert periods == []
-
-
