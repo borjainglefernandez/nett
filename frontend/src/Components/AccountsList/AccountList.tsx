@@ -52,7 +52,7 @@ const AccountList: React.FC<AccountListProps> = ({
 	return (
 		<Box>
 			{Object.values(groupedAccounts).map((group) => (
-				<Card key={group.itemId} sx={{ mb: 3 }}>
+				<Card key={group.itemId} sx={{ mb: 2 }}>
 					<CardHeader
 						title={
 							<Box
@@ -88,15 +88,16 @@ const AccountList: React.FC<AccountListProps> = ({
 							</Box>
 						}
 					/>
-					<CardContent>
+					<CardContent sx={{ pt: 2 }}>
 						<Grid container spacing={2}>
 							{group.accounts.map((account: Account, i: number) => (
-								<AccountSelectableCard
-									key={account.id}
-									selectDeselectAccount={selectDeselectAccount}
-									account={account}
-									isSelected={selectedAccounts.includes(account)}
-								/>
+								<Grid item xs={12} key={account.id}>
+									<AccountSelectableCard
+										selectDeselectAccount={selectDeselectAccount}
+										account={account}
+										isSelected={selectedAccounts.includes(account)}
+									/>
+								</Grid>
 							))}
 						</Grid>
 					</CardContent>
