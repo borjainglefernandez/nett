@@ -68,6 +68,8 @@ For production use, configure AWS S3 backup to protect against database loss:
 
 #### Option 1: Run with Docker
 
+**Prerequisites:** Make sure Docker Desktop (or Docker daemon) is running.
+
 1. Start the containers:
 
 ```bash
@@ -86,6 +88,12 @@ make logs
 
 ```bash
 make stop
+```
+
+4. Stop and remove containers:
+
+```bash
+make down
 ```
 
 #### Option 2: Run without Docker

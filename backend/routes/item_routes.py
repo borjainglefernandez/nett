@@ -147,11 +147,10 @@ def create_item():
 
     # Determine how many *new* Plaid account IDs would be added
     # Existing accounts (by id or original_name) are considered reactivations
+    # Always use account_id (not persistent_account_id) since transactions reference account_id
     new_plaid_account_ids = []
     for plaid_account in plaid_accounts:
-        account_id = plaid_account.get("persistent_account_id") or plaid_account.get(
-            "account_id"
-        )
+        account_id = plaid_account.get("account_id")
         official_name = plaid_account.get("official_name") or ""
         name = plaid_account.get("name") or ""
         account_name_part = (
@@ -199,9 +198,11 @@ def create_item():
 
         account_name = account_name_part + "-" + plaid_account.get("mask", "")
 
-        account_id = plaid_account.get("persistent_account_id") or plaid_account.get(
-            "account_id"
-        )
+        # Always use account_id (not persistent_account_id) since transactions reference account_id
+        account_id = plaid_account.get("account_id")
+        if not account_id:
+            logger.warning(f"   ⚠️ Account missing account_id, skipping: {account_name}")
+            continue
         logger.info(f"   Account ID: {account_id}, Name: {account_name}")
 
         # Check if account already exists (active or inactive)
