@@ -8,6 +8,9 @@ Nett is a financial application that integrates with Plaid to manage bank accoun
   - [Prerequisites](#prerequisites)
   - [Environment Setup](#environment-setup)
   - [Running the Application](#running-the-application)
+- [Access Token Backup](#access-token-backup)
+  - [Setup](#setup)
+  - [Recovery](#recovery)
 - [Testing](#testing)
   - [Backend Testing](#backend-testing)
   - [Frontend Testing](#frontend-testing)
@@ -49,6 +52,15 @@ Edit `.env` and fill in your Plaid credentials:
 - `PLAID_PRODUCTS`: Comma-separated list of products (e.g., `transactions`)
 - `PLAID_COUNTRY_CODES`: Comma-separated list of country codes (e.g., `US`)
 - `PLAID_REDIRECT_URI`: Optional redirect URI for OAuth (e.g., `http://localhost:3000/`)
+
+**Access Token Backup (Optional but Recommended):**
+
+For production use, configure AWS S3 backup to protect against database loss:
+
+- `AWS_S3_BUCKET_NAME`: S3 bucket name for storing access token backups
+- `AWS_ACCESS_KEY`: AWS access key with S3 write permissions
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `AWS_REGION`: AWS region (optional, defaults to `us-east-2`)
 
 > **Note**: `.env` files are for local development only. Never commit secrets or use `.env` files in production.
 
@@ -97,6 +109,63 @@ npm start
 ```
 
 The frontend will run on `http://localhost:3000`.
+
+## Access Token Backup
+
+Nett includes an optional S3-based backup system for Plaid access tokens. This serves as a failsafe to recover access tokens if the local database is lost or corrupted, allowing you to remove items from Plaid and stop billing.
+
+### Setup
+
+1. **Create an S3 bucket** with encryption at rest enabled:
+
+   - Go to AWS S3 Console
+   - Create a new bucket
+   - Enable encryption (SSE-S3 or SSE-KMS)
+   - Note the bucket name
+
+2. **Create an IAM user** with S3 access:
+
+   - Go to AWS IAM Console → Users
+   - Create a new user (e.g., `nett-backup-user`)
+   - Attach policy: `AmazonS3FullAccess` or create a custom policy for your bucket
+   - Create access keys and save them securely
+
+3. **Configure environment variables** in your `.env` file:
+
+   ```
+   AWS_S3_BUCKET_NAME=your-bucket-name
+   AWS_ACCESS_KEY=your-access-key-id
+   AWS_SECRET_ACCESS_KEY=your-secret-access-key
+   AWS_REGION=us-east-2  # Optional, defaults to us-east-2
+   ```
+
+4. **How it works**:
+   - Access tokens are automatically backed up to S3 when items are created or reactivated
+   - Tokens are stored with metadata (item_id, environment)
+   - Backup files are environment-specific: `access_tokens_backup_sandbox.json` and `access_tokens_backup_production.json`
+   - Tokens are never deleted from backup (permanent failsafe)
+   - Production backups are never touched by tests (only sandbox backups are cleaned up after test runs)
+
+### Recovery
+
+If your database is lost, you can recover access tokens from S3:
+
+1. **Restore a specific token** via API:
+
+   ```bash
+   GET /api/item/<item_id>/restore-token
+   ```
+
+   Returns: `{"access_token": "token"}`
+
+2. **Use the restored token** to remove items from Plaid:
+   ```python
+   from plaid.model.item_remove_request import ItemRemoveRequest
+   remove_request = ItemRemoveRequest(access_token=restored_token)
+   plaid_client.item_remove(remove_request)
+   ```
+
+**Cost**: < $0.10/month for < 100 items (S3 storage + minimal request costs)
 
 ### Test Credentials
 

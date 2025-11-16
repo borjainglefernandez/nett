@@ -1,6 +1,7 @@
 import pytest
 import os
 import json
+import boto3
 from decimal import Decimal
 from datetime import datetime
 from models.item.item import Item
@@ -15,6 +16,7 @@ from models import db
 import plaid
 from plaid.model.item_get_request import ItemGetRequest
 from plaid.api import plaid_api
+from botocore.exceptions import ClientError
 
 
 @pytest.mark.integration
@@ -119,6 +121,160 @@ class TestItemRoutesIntegration:
             # We'll need to create an item first or use a test access token
             # For now, we'll test with mocked data
             return "access-sandbox-test-token"
+
+    def _get_s3_backup_data(self):
+        """Helper to read backup data from S3."""
+        bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
+        if not bucket_name:
+            pytest.skip("S3 backup not configured (AWS_S3_BUCKET_NAME not set)")
+
+        try:
+            s3_client = boto3.client(
+                "s3",
+                region_name=os.getenv("AWS_REGION", "us-east-1"),
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            )
+            # Get environment-specific filename
+            from utils.token_backup import get_s3_file_name
+
+            environment = os.getenv("PLAID_ENV", "sandbox")
+            file_name = get_s3_file_name(environment)
+
+            response = s3_client.get_object(Bucket=bucket_name, Key=file_name)
+            content = response["Body"].read().decode("utf-8")
+            return json.loads(content)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return {}
+            raise
+
+    def _verify_token_in_s3(self, item_id, access_token, environment):
+        """Verify that a token exists in S3 backup with correct metadata."""
+        backup_data = self._get_s3_backup_data()
+        assert item_id in backup_data, f"Item {item_id} not found in S3 backup"
+
+        token_entry = backup_data[item_id]
+        assert (
+            token_entry["access_token"] == access_token
+        ), "Access token mismatch in S3 backup"
+        assert (
+            token_entry["environment"] == environment
+        ), f"Environment mismatch: expected {environment}, got {token_entry['environment']}"
+        assert token_entry["item_id"] == item_id, "Item ID mismatch in S3 backup"
+
+    @pytest.mark.integration
+    def test_s3_backup_on_item_creation(
+        self, client, test_app, real_plaid_item_and_access_token, sample_institution
+    ):
+        """Test that access token is backed up to S3 when creating a new item."""
+        with test_app.app_context():
+            plaid_data = real_plaid_item_and_access_token
+            access_token = plaid_data["access_token"]
+            item_id = plaid_data["item_id"]
+            environment = os.getenv("PLAID_ENV", "sandbox")
+
+            # Create the item
+            data = {
+                "access_token": access_token,
+                "institution_id": sample_institution,
+            }
+
+            response = client.post("/api/item", json=data)
+            assert response.status_code in [
+                200,
+                201,
+            ], f"Failed to create item: {response.data}"
+
+            # Verify token was backed up to S3
+            self._verify_token_in_s3(item_id, access_token, environment)
+
+    @pytest.mark.integration
+    def test_s3_backup_configuration_error(
+        self, client, test_app, real_plaid_item_and_access_token, sample_institution
+    ):
+        """Test that item creation fails with error when S3 backup is not configured."""
+        with test_app.app_context():
+            import utils.token_backup
+            from utils.token_backup import TokenBackupConfigurationError
+
+            # Clear the global instance and reset module-level variable
+            utils.token_backup._token_backup = None
+            original_bucket = os.environ.get("AWS_S3_BUCKET_NAME")
+            original_key = os.environ.get("AWS_ACCESS_KEY")
+            original_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+            try:
+                # Remove S3 configuration
+                if "AWS_S3_BUCKET_NAME" in os.environ:
+                    del os.environ["AWS_S3_BUCKET_NAME"]
+
+                # Force re-evaluation of module-level variable
+                import importlib
+
+                importlib.reload(utils.token_backup)
+
+                # Try to create item - should fail with configuration error
+                plaid_data = real_plaid_item_and_access_token
+                data = {
+                    "access_token": plaid_data["access_token"],
+                    "institution_id": sample_institution,
+                }
+
+                response = client.post("/api/item", json=data)
+
+                # Should return 500 error due to configuration error
+                assert (
+                    response.status_code == 500
+                ), f"Expected 500, got {response.status_code}. Response: {response.data}"
+                response_data = json.loads(response.data)
+                assert "AWS_S3_BUCKET_NAME" in response_data.get(
+                    "display_message", ""
+                ), f"Error message: {response_data.get('display_message', '')}"
+
+            finally:
+                # Restore original configuration
+                if original_bucket:
+                    os.environ["AWS_S3_BUCKET_NAME"] = original_bucket
+                if original_key:
+                    os.environ["AWS_ACCESS_KEY"] = original_key
+                if original_secret:
+                    os.environ["AWS_SECRET_ACCESS_KEY"] = original_secret
+                # Reload module to restore normal behavior
+                importlib.reload(utils.token_backup)
+
+    @pytest.mark.integration
+    def test_s3_backup_on_item_reactivation(
+        self, client, test_app, real_plaid_item_and_access_token, sample_institution
+    ):
+        """Test that access token is backed up to S3 when reactivating an existing item."""
+        with test_app.app_context():
+            plaid_data = real_plaid_item_and_access_token
+            access_token = plaid_data["access_token"]
+            item_id = plaid_data["item_id"]
+            environment = os.getenv("PLAID_ENV", "sandbox")
+
+            # First, create the item
+            data = {
+                "access_token": access_token,
+                "institution_id": sample_institution,
+            }
+
+            response1 = client.post("/api/item", json=data)
+            assert response1.status_code in [
+                200,
+                201,
+            ], "Failed to create item initially"
+
+            # Verify initial backup
+            self._verify_token_in_s3(item_id, access_token, environment)
+
+            # Create item again to trigger reactivation
+            response2 = client.post("/api/item", json=data)
+            assert response2.status_code in [200, 201], "Failed to reactivate item"
+
+            # Verify token is still backed up (should be updated)
+            self._verify_token_in_s3(item_id, access_token, environment)
 
     @pytest.mark.integration
     def test_comprehensive_item_operations_happy_path(

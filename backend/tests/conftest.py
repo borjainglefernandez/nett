@@ -4,8 +4,16 @@ import tempfile
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
+from dotenv import load_dotenv
 
 import sys
+
+# Load environment variables from .env file in project root
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+env_path = os.path.join(project_root, ".env")
+load_dotenv(env_path)
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -17,6 +25,41 @@ from models.institution.institution import Institution
 from models.transaction.txn import Txn
 from models.account.account_type import AccountType
 from models.account.account_subtype import AccountSubtype
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_s3_backup_after_tests():
+    """
+    Cleanup S3 backup file after all integration tests complete.
+    This helps limit storage costs by removing test data.
+    Only runs if S3 is configured (which indicates integration tests with real S3).
+    """
+    yield  # Run all tests first
+
+    # Check if we're running integration tests
+    # This fixture will run for all tests, but we only cleanup if S3 is configured
+    # (which indicates integration tests with real S3)
+    try:
+        from utils.token_backup import get_token_backup
+
+        # Only cleanup if S3 is configured (for integration tests)
+        bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
+        if bucket_name:
+            try:
+                token_backup = get_token_backup()
+                # Only cleanup sandbox environment (tests use sandbox)
+                # Never touch production backups
+                plaid_env = os.getenv("PLAID_ENV", "sandbox")
+                if plaid_env == "sandbox":
+                    token_backup.cleanup_backup_file("sandbox")
+            except Exception as e:
+                # Don't fail tests if cleanup fails, just log
+                import logging
+
+                logging.warning(f"Failed to cleanup S3 backup file: {e}")
+    except Exception:
+        # Ignore any errors during cleanup (e.g., if S3 not configured for unit tests)
+        pass
 
 
 @pytest.fixture

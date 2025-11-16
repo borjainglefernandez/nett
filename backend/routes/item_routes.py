@@ -32,6 +32,7 @@ from models.transaction.txn_subcategory import TxnSubcategory
 from models.transaction.txn import Txn
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from utils.logger import get_logger
+from utils.token_backup import get_token_backup
 
 item_bp = Blueprint("item", __name__, url_prefix="/api/item")
 logger = get_logger(__name__)
@@ -83,6 +84,16 @@ def create_item():
         # Return existing active accounts for this item
         existing_accounts = Account.query.filter_by(item_id=item_id, active=True).all()
         logger.info(f"📊 Returning {len(existing_accounts)} existing active accounts")
+
+        # Backup updated access token to S3 (after successful reactivation)
+        try:
+            plaid_env = os.getenv("PLAID_ENV", "sandbox")
+            token_backup = get_token_backup()
+            token_backup.backup_token(item_id, access_token, plaid_env)
+        except Exception as e:
+            logger.error(f"❌ Failed to backup token for item {item_id}: {e}")
+            raise
+
         return jsonify([account.to_dict() for account in existing_accounts])
 
     # Item doesn't exist - create new item
@@ -247,6 +258,16 @@ def create_item():
                 raise
 
     logger.info(f"🎉 Successfully created {len(accounts)} accounts")
+
+    # Backup access token to S3 (after successful item and account creation)
+    try:
+        plaid_env = os.getenv("PLAID_ENV", "sandbox")
+        token_backup = get_token_backup()
+        token_backup.backup_token(item_id, access_token, plaid_env)
+    except Exception as e:
+        logger.error(f"❌ Failed to backup token for item {item_id}: {e}")
+        raise
+
     return jsonify([account.to_dict() for account in accounts])
 
 
