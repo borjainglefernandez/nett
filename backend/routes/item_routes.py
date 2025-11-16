@@ -1,7 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
 import os
-from sqlite3 import IntegrityError
 import time
 from flask import Blueprint, request, jsonify, current_app
 from http import HTTPStatus
@@ -20,6 +19,7 @@ from utils.model_utils import (
 from utils.error_utils import (
     error_response,
 )
+from utils.txn_utils import resolve_category_and_subcategory
 from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.item_remove_request import ItemRemoveRequest
 from plaid.model.accounts_get_request import AccountsGetRequest
@@ -27,8 +27,6 @@ from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdReques
 from models.transaction.payment_channel import PaymentChannel
 from models.account.account import Account
 from models.item.item import Item
-from models.transaction.txn_category import TxnCategory
-from models.transaction.txn_subcategory import TxnSubcategory
 from models.transaction.txn import Txn
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from utils.logger import get_logger
@@ -431,30 +429,15 @@ def handle_added_transactions(transactions: list):
             )
             continue
 
-        # Resolve category + subcategory (create if missing)
+        # Resolve category + subcategory
+        # If category doesn't exist, default to OTHER/OTHER (don't auto-create deleted categories)
         personal_finance = transaction.get("personal_finance_category", {})
-        primary_category = personal_finance.get("primary", "OTHER").strip()
-        detailed_category = personal_finance.get("detailed", "OTHER").strip()
+        primary_category = personal_finance.get("primary", "OTHER")
+        detailed_category = personal_finance.get("detailed", "OTHER")
 
-        category = TxnCategory.query.filter_by(name=primary_category).one_or_none()
-        if not category:
-            category = create_model_instance_from_dict(
-                TxnCategory, {"name": primary_category}, fail_on_duplicate=False
-            )
-
-        subcategory = TxnSubcategory.query.filter_by(
-            name=detailed_category, category_id=category.id
-        ).one_or_none()
-        if not subcategory:
-            subcategory = create_model_instance_from_dict(
-                TxnSubcategory,
-                {
-                    "name": detailed_category,
-                    "description": f"Subcategory of {primary_category}",
-                    "category_id": category.id,
-                },
-                fail_on_duplicate=False,
-            )
+        category, subcategory = resolve_category_and_subcategory(
+            primary_category, detailed_category
+        )
 
         # Safe payment channel enum parsing
         try:
@@ -514,29 +497,12 @@ def handle_modified_transactions(transactions: list):
         }
 
         # Ensure category exists if updated
+        # If category doesn't exist, default to OTHER (don't auto-create deleted categories)
         if primary_category:
-            category = TxnCategory.query.filter_by(name=primary_category).one_or_none()
-            if not category:
-                category = create_model_instance_from_dict(
-                    TxnCategory, {"name": primary_category}, fail_on_duplicate=False
-                )
+            category, subcategory = resolve_category_and_subcategory(
+                primary_category, detailed_category or "OTHER"
+            )
             update_data["category_id"] = category.id
-
-        # Ensure subcategory exists if updated
-        if detailed_category and "category_id" in update_data:
-            subcategory = TxnSubcategory.query.filter_by(
-                name=detailed_category, category_id=update_data["category_id"]
-            ).one_or_none()
-            if not subcategory:
-                subcategory = create_model_instance_from_dict(
-                    TxnSubcategory,
-                    {
-                        "name": detailed_category,
-                        "description": f"Subcategory of {primary_category}",
-                        "category_id": update_data["category_id"],
-                    },
-                    fail_on_duplicate=False,
-                )
             update_data["subcategory_id"] = subcategory.id
 
         # Safe payment channel update
