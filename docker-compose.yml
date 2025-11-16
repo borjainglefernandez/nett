@@ -1,5 +1,3 @@
-version: "3.5"
-
 x-environment: &QUICKSTART_ENVIRONMENT
   PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
   PLAID_SECRET: ${PLAID_SECRET}
@@ -22,6 +20,11 @@ services:
     environment:
       <<: *QUICKSTART_ENVIRONMENT
     restart: always
+    volumes:
+      # Persist SQLite database - database.db is stored in the backend directory
+      # This ensures the database persists across container restarts and removals
+      - ./backend/database.db:/opt/app/backend/database.db
+      - ./backend/instance:/opt/app/backend/instance
 
   frontend:
     environment:
