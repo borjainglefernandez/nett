@@ -91,6 +91,7 @@ const CategoryManagement = () => {
 	};
 
 	const handleDeleteCategoryDialogOpen = (category: Category) => {
+		setSubcategoryToDelete(null); // Clear subcategory state when opening category dialog
 		setCategoryToDelete(category);
 		setOpenDialog(true);
 	};
@@ -108,6 +109,7 @@ const CategoryManagement = () => {
 				);
 			}
 		}
+		setCategoryToDelete(null); // Clear state after deletion attempt (success or failure)
 		setOpenDialog(false);
 	};
 
@@ -162,12 +164,15 @@ const CategoryManagement = () => {
 	};
 
 	const handleDeleteSubcategoryDialogOpen = (subcategory: Subcategory) => {
+		setCategoryToDelete(null); // Clear category state when opening subcategory dialog
 		setSubcategoryToDelete(subcategory);
 		setOpenDialog(true);
 	};
 
 	const handleDeleteSubcategory = async () => {
 		if (!subcategoryToDelete) return;
+
+		let deletionSuccessful = false;
 
 		// Only delete from API if it has a real ID
 		if (subcategoryToDelete.id) {
@@ -176,31 +181,47 @@ const CategoryManagement = () => {
 			if (getData) {
 				const delData = await del(`/api/subcategory/${subcategoryToDelete.id}`);
 				if (delData) {
+					deletionSuccessful = true;
 					alert.trigger(
 						`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
 						"success"
+					);
+				} else {
+					alert.trigger(
+						`Failed to delete subcategory "${subcategoryToDelete.name}"`,
+						"error"
 					);
 				}
 			} else {
 				// Subcategory doesn't exist in backend
 				console.warn("Subcategory not found on server, skipping delete");
+				alert.trigger(
+					`Subcategory "${subcategoryToDelete.name}" not found on server`,
+					"error"
+				);
 			}
+		} else {
+			// For new subcategories without IDs, just remove from state
+			deletionSuccessful = true;
 		}
 
-		// Remove it from state regardless of server response
-		setCategories((prev) =>
-			prev.map((cat) =>
-				cat.id === subcategoryToDelete.category_id
-					? {
-							...cat,
-							subcategories: cat.subcategories.filter(
-								(sub) => sub.id !== subcategoryToDelete.id
-							),
-					  }
-					: cat
-			)
-		);
+		// Only remove from state if deletion was successful
+		if (deletionSuccessful) {
+			setCategories((prev) =>
+				prev.map((cat) =>
+					cat.id === subcategoryToDelete.category_id
+						? {
+								...cat,
+								subcategories: cat.subcategories.filter(
+									(sub) => sub.id !== subcategoryToDelete.id
+								),
+						  }
+						: cat
+				)
+			);
+		}
 
+		setSubcategoryToDelete(null); // Clear state after deletion attempt (success or failure)
 		setOpenDialog(false);
 	};
 
