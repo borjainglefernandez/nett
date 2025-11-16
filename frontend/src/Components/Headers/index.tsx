@@ -32,11 +32,10 @@ const Header = () => {
 					</Button>
 				</div>
 				<p className={styles.introPar}>
-					The Plaid flow begins when your user wants to connect their bank
-					account to your app. Simulate this by clicking the button below to
-					launch Link - the client-side component that your users will interact
-					with in order to link their accounts to Plaid and allow you to access
-					their accounts via the Plaid API.
+					Connect your bank account to start tracking transactions and managing
+					your budget. Click the "ADD NEW ACCOUNT" button above to securely link
+					your accounts through Plaid and automatically sync your financial
+					data.
 				</p>
 			</>
 		</div>
