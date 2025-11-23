@@ -186,12 +186,9 @@ const CategoryManagement = () => {
 						`Subcategory "${subcategoryToDelete.name}" deleted successfully`,
 						"success"
 					);
-				} else {
-					alert.trigger(
-						`Failed to delete subcategory "${subcategoryToDelete.name}"`,
-						"error"
-					);
 				}
+				// If delData is falsy, the error was already handled by handleError in apiService
+				// No need to show a duplicate generic error message
 			} else {
 				// Subcategory doesn't exist in backend
 				console.warn("Subcategory not found on server, skipping delete");

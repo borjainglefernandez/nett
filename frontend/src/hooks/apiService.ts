@@ -12,14 +12,26 @@ const useApiService = (alert: ReturnType<typeof useAppAlert>) => {
         const errResponse = error.response?.data as Error; // Type assertion here
 		if (errResponse) {
 			console.log(error);
-            // Handle Axios error response
+            // Handle Axios error response - check for display_message or message
+            const errorMessage = errResponse.display_message || 
+                                (errResponse as any).message || 
+                                (typeof errResponse === 'string' ? errResponse : 
+                                error.response?.statusText || 'An error occurred');
             alert.trigger(
-            `Error: ${errResponse.display_message}`,
+            errorMessage,
             'error'
             );
         } else {
-            // Handle generic Axios error (e.g., network error)
-            alert.trigger('Network error occurred. Please try again.', 'error');
+            // Try to extract error message from response data if it's a string or has message property
+            const responseData = error.response?.data;
+            if (typeof responseData === 'string') {
+                alert.trigger(responseData, 'error');
+            } else if (responseData && (responseData as any).message) {
+                alert.trigger((responseData as any).message, 'error');
+            } else {
+                // Handle generic Axios error (e.g., network error)
+                alert.trigger('Network error occurred. Please try again.', 'error');
+            }
         }
         } else {
         // Handle non-Axios errors
