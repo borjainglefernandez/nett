@@ -110,10 +110,11 @@ const Main = () => {
 		}
 	}, []);
 
-	const getTransactions = useCallback(async () => {
+	const getTransactions = useCallback(async (accountsToUse?: Account[]) => {
+		const accountsForTransactions = accountsToUse || selectedAccounts;
 		const allTransactions: Transaction[] = [];
 		await Promise.all(
-			selectedAccounts.map(async (account) => {
+			accountsForTransactions.map(async (account) => {
 				const transactionData = await get(
 					`/api/account/${account.id}/transactions`
 				);
@@ -132,7 +133,23 @@ const Main = () => {
 			})
 		);
 		setTransactions(allTransactions); // Update state after all requests complete
-	}, [selectedAccounts]);
+	}, [selectedAccounts, get]);
+
+	const refreshAccountsAndTransactions = useCallback(async () => {
+		const accountData = await get("/api/account");
+		if (accountData) {
+			const fetchedAccounts: Account[] = accountData.map((item: any) => ({
+				...item,
+				account_type: capitalizeWords(item.account_type),
+				account_subtype: capitalizeWords(item.account_subtype),
+				last_updated: new Date(item.last_updated),
+			}));
+			setAccounts(fetchedAccounts);
+			setSelectedAccounts(fetchedAccounts);
+			// Refresh transactions with the updated accounts immediately
+			await getTransactions(fetchedAccounts);
+		}
+	}, [get, getTransactions]);
 
 	useEffect(() => {
 		const init = async () => {
@@ -250,6 +267,7 @@ const Main = () => {
 							selectedAccounts={selectedAccounts}
 							selectDeselectAccount={selectDeselectAccount}
 							removeItem={handleRemoveItem}
+							onAccountUpdate={refreshAccountsAndTransactions}
 						/>
 					</TabPanel>
 					<TabPanel value={tabIndex} index={1}>

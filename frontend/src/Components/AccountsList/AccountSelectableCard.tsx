@@ -10,11 +10,11 @@ import {
 	Typography,
 	Switch,
 	TextField,
+	Button,
 } from "@mui/material";
 import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
 import Account from "../../Models/Account";
-import { Button } from "plaid-threads";
 import { useState } from "react";
 import formatDate from "../../Utils/DateUtils";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -29,6 +29,7 @@ interface AccountSelectableCard {
 	account: Account;
 	isSelected: boolean;
 	selectDeselectAccount: (account: Account, select: boolean) => void;
+	onAccountUpdate?: () => void;
 }
 
 const ExpandMore = styled(
@@ -47,6 +48,7 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 	account,
 	isSelected,
 	selectDeselectAccount,
+	onAccountUpdate,
 }) => {
 	const alert = useAppAlert();
 	const { put, del } = useApiService(alert);
@@ -67,6 +69,10 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 			account.name = editableName;
 			setIsEditingName(false);
 			alert.trigger("Account name updated successfully.", "success");
+			// Trigger refresh of accounts and transactions
+			if (onAccountUpdate) {
+				onAccountUpdate();
+			}
 		}
 	};
 
@@ -95,23 +101,32 @@ const AccountSelectableCard: React.FC<AccountSelectableCard> = ({
 					}
 					title={
 						isEditingName ? (
-							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+							<Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
 								<TextField
 									value={editableName}
 									onChange={(e) => setEditableName(e.target.value)}
 									size='small'
 									variant='standard'
+									sx={{ flex: 1, minWidth: 0 }}
+									autoFocus
 								/>
-								<Button small onClick={handleNameUpdate}>
+								<Button 
+									size='small' 
+									variant='contained'
+									onClick={handleNameUpdate} 
+									sx={{ minWidth: "auto", px: 1.5 }}
+								>
 									Save
 								</Button>
 								<Button
-									small
-									secondary
+									size='small'
+									variant='outlined'
+									color='secondary'
 									onClick={() => {
 										setIsEditingName(false);
 										setEditableName(account.name);
 									}}
+									sx={{ minWidth: "auto", px: 1.5 }}
 								>
 									Cancel
 								</Button>

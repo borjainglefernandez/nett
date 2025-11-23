@@ -16,6 +16,7 @@ interface AccountListProps {
 	selectedAccounts: Account[];
 	selectDeselectAccount: (account: Account, select: boolean) => void;
 	removeItem: (itemId: string) => void;
+	onAccountUpdate?: () => void;
 }
 
 const AccountList: React.FC<AccountListProps> = ({
@@ -23,6 +24,7 @@ const AccountList: React.FC<AccountListProps> = ({
 	selectedAccounts,
 	selectDeselectAccount,
 	removeItem,
+	onAccountUpdate,
 }) => {
 	if (accounts.length === 0) {
 		return (
@@ -60,15 +62,8 @@ const AccountList: React.FC<AccountListProps> = ({
 								alignItems='center'
 								justifyContent='space-between'
 							>
-								<Box display='flex' alignItems='center' gap={2}>
-									{group.logo && (
-										<img
-											src={group.logo}
-											alt={group.institutionName}
-											style={{ width: 32, height: 32 }}
-										/>
-									)}
-									<Typography variant='h6'>{group.institutionName}</Typography>
+							<Box display='flex' alignItems='center' gap={2}>
+								<Typography variant='h6'>{group.institutionName}</Typography>
 									<Chip
 										label={`${group.accounts.length} account${
 											group.accounts.length !== 1 ? "s" : ""
@@ -91,11 +86,12 @@ const AccountList: React.FC<AccountListProps> = ({
 					<CardContent sx={{ pt: 2 }}>
 						<Grid container spacing={2}>
 							{group.accounts.map((account: Account, i: number) => (
-								<Grid item xs={12} key={account.id}>
+								<Grid item xs={12} sm={6} key={account.id}>
 									<AccountSelectableCard
 										selectDeselectAccount={selectDeselectAccount}
 										account={account}
 										isSelected={selectedAccounts.includes(account)}
+										onAccountUpdate={onAccountUpdate}
 									/>
 								</Grid>
 							))}
