@@ -41,6 +41,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const [categoryMap, setCategoryMap] = useState<Record<string, Subcategory[]>>(
 		{}
 	);
+	const [accountTypeMap, setAccountTypeMap] = useState<Record<string, string>>(
+		{}
+	);
 	const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>(
 		[]
 	);
@@ -66,6 +69,23 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			}
 		};
 		fetchCategories();
+	}, []);
+
+	useEffect(() => {
+		const fetchAccounts = async () => {
+			const data = await get("/api/account");
+			if (data) {
+				const map = data.reduce(
+					(acc: Record<string, string>, account: any) => {
+						acc[account.id] = account.account_type;
+						return acc;
+					},
+					{}
+				);
+				setAccountTypeMap(map);
+			}
+		};
+		fetchAccounts();
 	}, []);
 
 	useEffect(() => {
@@ -192,6 +212,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			field: "date",
 			headerName: "Date",
 			flex: 0.6,
+			align: "left",
+			headerAlign: "left",
 			renderCell: (params: GridRenderCellParams) => {
 				const date = new Date(params.value);
 				const formattedDate = date.toLocaleDateString(undefined, {
@@ -203,7 +225,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 				return (
 					<Tooltip title={fullDateTime}>
-						<span>{formattedDate}</span>
+						<Typography 
+							variant="body2" 
+							sx={{ 
+								color: "text.secondary",
+								display: "flex",
+								alignItems: "center",
+								height: "100%",
+							}}
+						>
+							{formattedDate}
+						</Typography>
 					</Tooltip>
 				);
 			},
@@ -230,11 +262,41 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 			headerName: "Amount",
 			...defaultColumnProps,
 			flex: 0.6,
-			renderCell: (params: GridRenderCellParams) =>
-				new Intl.NumberFormat("en-US", {
-					style: "currency",
-					currency: "USD",
-				}).format(params.value),
+			align: "right",
+			headerAlign: "right",
+			renderCell: (params: GridRenderCellParams) => {
+				const amount = params.value;
+				const accountType = accountTypeMap[params.row.accountId] || "";
+				const isCreditCard = accountType.toLowerCase() === "credit";
+				
+				// For credit cards: positive = charge (red), negative = payment (green)
+				// For other accounts: positive = income (green), negative = expense (red)
+				const isNegative = amount < 0;
+				const shouldShowRed = isCreditCard ? !isNegative : isNegative;
+				
+				// Always display absolute value (remove negative sign) - color indicates direction
+				const displayAmount = Math.abs(amount);
+				
+				return (
+					<Typography
+						variant="body2"
+						sx={{
+							fontWeight: 600,
+							color: shouldShowRed ? "error.main" : "success.main",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "flex-end",
+							height: "100%",
+							width: "100%",
+						}}
+					>
+						{new Intl.NumberFormat("en-US", {
+							style: "currency",
+							currency: "USD",
+						}).format(displayAmount)}
+					</Typography>
+				);
+			},
 		},
 		{
 			field: "category",
@@ -246,6 +308,15 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					value={params.row.categoryObj.name}
 					onChange={(e) => handleCategoryChange(params.row.id, e.target.value)}
 					fullWidth
+					size="small"
+					sx={{
+						"& .MuiOutlinedInput-notchedOutline": {
+							borderColor: "divider",
+						},
+						"&:hover .MuiOutlinedInput-notchedOutline": {
+							borderColor: "primary.main",
+						},
+					}}
 				>
 					{categories.map((category) => (
 						<MenuItem key={category.name} value={category.name}>
@@ -267,6 +338,15 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 						handleSubcategoryChange(params.row.id, e.target.value)
 					}
 					fullWidth
+					size="small"
+					sx={{
+						"& .MuiOutlinedInput-notchedOutline": {
+							borderColor: "divider",
+						},
+						"&:hover .MuiOutlinedInput-notchedOutline": {
+							borderColor: "primary.main",
+						},
+					}}
 				>
 					{(categoryMap[params.row.categoryObj.name] || []).map((sub) => (
 						<MenuItem key={sub.name} value={sub.name}>
@@ -305,13 +385,22 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				subcategory: transaction.subcategory?.name ?? "", // for filtering/sorting
 				date: transaction.date,
 				accountName: transaction.account_name,
+				accountId: transaction.account_id,
 				logo_url: transaction.logo_url, 
 			})),
 		[localTransactions]
 	);
 
 	return (
-		<Paper sx={{ height: 500, width: "100%", p: 2 }}>
+		<Paper 
+			sx={{ 
+				height: 600, 
+				width: "100%", 
+				p: 3,
+				borderRadius: 2,
+				boxShadow: 2,
+			}}
+		>
 			{rows.length === 0 ? (
 				<Stack
 					alignItems='center'
@@ -328,9 +417,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					{selectionModel.length > 0 && (
 						<Stack direction='row' justifyContent='space-between' mb={2}>
 							<Button
-								variant='outlined'
+								variant='contained'
 								color='error'
 								onClick={() => openDeleteDialog(null)}
+								sx={{ mb: 2 }}
 							>
 								Delete Selected ({selectionModel.length})
 							</Button>
@@ -340,7 +430,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					<DataGrid
 						rows={rows}
 						columns={columns}
-						pageSizeOptions={[5, 10]}
+						pageSizeOptions={[10, 25, 50, 100]}
 						checkboxSelection
 						onRowSelectionModelChange={(newSelection) =>
 							setSelectionModel(newSelection)
@@ -350,8 +440,46 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 							sorting: {
 								sortModel: [{ field: "date", sort: "desc" }],
 							},
+							pagination: {
+								paginationModel: { pageSize: 25 },
+							},
 						}}
-						sx={{ border: 0 }}
+						sx={{
+							border: 0,
+							"& .MuiDataGrid-root": {
+								border: "none",
+							},
+							"& .MuiDataGrid-cell": {
+								borderBottom: "1px solid",
+								borderColor: "divider",
+								display: "flex",
+								alignItems: "center",
+							},
+							"& .MuiDataGrid-columnHeaders": {
+								backgroundColor: "action.hover",
+								borderBottom: "2px solid",
+								borderColor: "divider",
+								fontWeight: 600,
+							},
+							"& .MuiDataGrid-row": {
+								"&:hover": {
+									backgroundColor: "action.hover",
+								},
+								"&.Mui-selected": {
+									backgroundColor: "action.selected",
+									"&:hover": {
+										backgroundColor: "action.selected",
+									},
+								},
+							},
+							"& .MuiDataGrid-footerContainer": {
+								borderTop: "1px solid",
+								borderColor: "divider",
+							},
+							"& .MuiDataGrid-toolbarContainer": {
+								padding: 1,
+							},
+						}}
 					/>
 				</>
 			)}

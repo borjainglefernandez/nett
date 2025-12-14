@@ -17,6 +17,8 @@ RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 
 ENV FLASK_APP=/opt/app/backend/server.py
+ENV FLASK_ENV=development
+ENV FLASK_DEBUG=1
 EXPOSE 8000
 ENTRYPOINT ["python"]
-CMD ["-m", "flask", "run", "--host=0.0.0.0", "--port=8000"]
+CMD ["-m", "flask", "run", "--host=0.0.0.0", "--port=8000", "--reload"]
