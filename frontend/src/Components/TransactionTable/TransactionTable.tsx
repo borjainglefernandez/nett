@@ -75,13 +75,10 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 		const fetchAccounts = async () => {
 			const data = await get("/api/account");
 			if (data) {
-				const map = data.reduce(
-					(acc: Record<string, string>, account: any) => {
-						acc[account.id] = account.account_type;
-						return acc;
-					},
-					{}
-				);
+				const map = data.reduce((acc: Record<string, string>, account: any) => {
+					acc[account.id] = account.account_type;
+					return acc;
+				}, {});
 				setAccountTypeMap(map);
 			}
 		};
@@ -225,9 +222,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 				return (
 					<Tooltip title={fullDateTime}>
-						<Typography 
-							variant="body2" 
-							sx={{ 
+						<Typography
+							variant='body2'
+							sx={{
 								color: "text.secondary",
 								display: "flex",
 								alignItems: "center",
@@ -268,18 +265,20 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				const amount = params.value;
 				const accountType = accountTypeMap[params.row.accountId] || "";
 				const isCreditCard = accountType.toLowerCase() === "credit";
-				
-				// For credit cards: positive = charge (red), negative = payment (green)
-				// For other accounts: positive = income (green), negative = expense (red)
+
+				// Plaid convention: positive = expense (money out), negative = income (money in)
+				// This applies to both credit cards and regular accounts:
+				// - Positive amounts = expenses/charges (red)
+				// - Negative amounts = income/payments (green)
 				const isNegative = amount < 0;
-				const shouldShowRed = isCreditCard ? !isNegative : isNegative;
-				
+				const shouldShowRed = !isNegative; // Positive = red, negative = green
+
 				// Always display absolute value (remove negative sign) - color indicates direction
 				const displayAmount = Math.abs(amount);
-				
+
 				return (
 					<Typography
-						variant="body2"
+						variant='body2'
 						sx={{
 							fontWeight: 600,
 							color: shouldShowRed ? "error.main" : "success.main",
@@ -308,7 +307,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					value={params.row.categoryObj.name}
 					onChange={(e) => handleCategoryChange(params.row.id, e.target.value)}
 					fullWidth
-					size="small"
+					size='small'
 					sx={{
 						"& .MuiOutlinedInput-notchedOutline": {
 							borderColor: "divider",
@@ -338,7 +337,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 						handleSubcategoryChange(params.row.id, e.target.value)
 					}
 					fullWidth
-					size="small"
+					size='small'
 					sx={{
 						"& .MuiOutlinedInput-notchedOutline": {
 							borderColor: "divider",
@@ -386,16 +385,16 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				date: transaction.date,
 				accountName: transaction.account_name,
 				accountId: transaction.account_id,
-				logo_url: transaction.logo_url, 
+				logo_url: transaction.logo_url,
 			})),
 		[localTransactions]
 	);
 
 	return (
-		<Paper 
-			sx={{ 
-				height: 600, 
-				width: "100%", 
+		<Paper
+			sx={{
+				height: 600,
+				width: "100%",
 				p: 3,
 				borderRadius: 2,
 				boxShadow: 2,
