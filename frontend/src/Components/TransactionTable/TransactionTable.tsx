@@ -1,11 +1,22 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+	useEffect,
+	useMemo,
+	useState,
+	useCallback,
+	useDeferredValue,
+} from "react";
 import {
-	DataGrid,
-	GridRenderCellParams,
-	GridColDef,
-	GridActionsCellItem,
-	GridRowSelectionModel,
-} from "@mui/x-data-grid";
+	useReactTable,
+	getCoreRowModel,
+	getSortedRowModel,
+	getPaginationRowModel,
+	getFilteredRowModel,
+	ColumnDef,
+	flexRender,
+	RowSelectionState,
+	SortingState,
+	ColumnFiltersState,
+} from "@tanstack/react-table";
 import {
 	Paper,
 	Select,
@@ -18,8 +29,24 @@ import {
 	Button,
 	Stack,
 	Typography,
+	Table,
+	TableBody,
+	TableCell,
+	TableContainer,
+	TableHead,
+	TableRow,
+	Checkbox,
+	IconButton,
+	TablePagination,
+	Box,
+	TextField,
+	InputAdornment,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import Transaction from "../../Models/Transaction";
 import { Category, Subcategory } from "../../Models/Category";
 import useApiService from "../../hooks/apiService";
@@ -31,6 +58,21 @@ import { Tooltip } from "@mui/material";
 interface TransactionTableProps {
 	transactions: Transaction[];
 }
+
+type TransactionRow = {
+	id: string;
+	name: string;
+	amount: number;
+	categoryObj: Category;
+	subcategoryObj: Subcategory | null;
+	category: string;
+	subcategory: string;
+	date: Date | string | undefined;
+	accountName: string;
+	accountId: string;
+	logo_url: string | null | undefined;
+	_searchText?: string; // Pre-computed search text for faster filtering
+};
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
 	transactions,
@@ -44,11 +86,27 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const [accountTypeMap, setAccountTypeMap] = useState<Record<string, string>>(
 		{}
 	);
-	const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>(
-		[]
-	);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [sorting, setSorting] = useState<SortingState>([
+		{ id: "date", desc: true },
+	]);
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+	const [globalFilter, setGlobalFilter] = useState("");
+	const [searchInput, setSearchInput] = useState("");
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+	// Debounce search input with longer delay for better performance
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setGlobalFilter(searchInput);
+		}, 750); // 750ms delay - longer for better performance
+
+		return () => clearTimeout(timer);
+	}, [searchInput]);
+
+	// Use deferred value to make filtering non-blocking
+	const deferredGlobalFilter = useDeferredValue(globalFilter);
 
 	const alert = useAppAlert();
 	const { get, put, del } = useApiService(alert);
@@ -162,6 +220,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
 	const handleDelete = async () => {
 		try {
+			const selectedIds = Object.keys(rowSelection);
 			if (deleteTargetId) {
 				const deleteTransactionResponse = await del(
 					`/api/transaction/${deleteTargetId}`
@@ -172,22 +231,22 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					);
 					alert.trigger(`Transaction ${deleteTargetId} deleted`, "success");
 				}
-			} else {
+			} else if (selectedIds.length > 0) {
 				const deleteTransactionResponses = await Promise.all(
-					selectionModel.map((id) => del(`/api/transaction/${id}`))
+					selectedIds.map((id) => del(`/api/transaction/${id}`))
 				);
 				const allTransactionsDeleted = deleteTransactionResponses.every(
 					(response) => response !== null && response !== undefined
 				);
 				if (allTransactionsDeleted) {
 					setLocalTransactions((prev) =>
-						prev.filter((txn) => !selectionModel.includes(txn.id))
+						prev.filter((txn) => !selectedIds.includes(txn.id))
 					);
 					alert.trigger(
-						`${selectionModel.length} transaction(s) deleted`,
+						`${selectedIds.length} transaction(s) deleted`,
 						"success"
 					);
-					setSelectionModel([]);
+					setRowSelection({});
 				}
 			}
 		} catch (error) {
@@ -203,176 +262,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 		setDeleteDialogOpen(true);
 	};
 
-	const defaultColumnProps = { flex: 1 };
-	const columns: GridColDef[] = [
-		{
-			field: "date",
-			headerName: "Date",
-			flex: 0.6,
-			align: "left",
-			headerAlign: "left",
-			renderCell: (params: GridRenderCellParams) => {
-				const date = new Date(params.value);
-				const formattedDate = date.toLocaleDateString(undefined, {
-					month: "2-digit",
-					day: "2-digit",
-					year: "numeric",
-				});
-				const fullDateTime = date.toLocaleString(); // full date and time in local timezone
-
-				return (
-					<Tooltip title={fullDateTime}>
-						<Typography
-							variant='body2'
-							sx={{
-								color: "text.secondary",
-								display: "flex",
-								alignItems: "center",
-								height: "100%",
-							}}
-						>
-							{formattedDate}
-						</Typography>
-					</Tooltip>
-				);
-			},
-		},
-
-		{
-			field: "name",
-			headerName: "Name",
-			...defaultColumnProps,
-			flex: 1.5,
-
-			renderCell: (params: GridRenderCellParams) => (
-				<EditableTransactionNameCell
-					id={params.row.id}
-					value={params.value}
-					logoUrl={params.row.logo_url}
-					updateTransactionField={updateTransactionField}
-				/>
-			),
-		},
-
-		{
-			field: "amount",
-			headerName: "Amount",
-			...defaultColumnProps,
-			flex: 0.6,
-			align: "right",
-			headerAlign: "right",
-			renderCell: (params: GridRenderCellParams) => {
-				const amount = params.value;
-				const accountType = accountTypeMap[params.row.accountId] || "";
-				const isCreditCard = accountType.toLowerCase() === "credit";
-
-				// Plaid convention: positive = expense (money out), negative = income (money in)
-				// This applies to both credit cards and regular accounts:
-				// - Positive amounts = expenses/charges (red)
-				// - Negative amounts = income/payments (green)
-				const isNegative = amount < 0;
-				const shouldShowRed = !isNegative; // Positive = red, negative = green
-
-				// Always display absolute value (remove negative sign) - color indicates direction
-				const displayAmount = Math.abs(amount);
-
-				return (
-					<Typography
-						variant='body2'
-						sx={{
-							fontWeight: 600,
-							color: shouldShowRed ? "error.main" : "success.main",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "flex-end",
-							height: "100%",
-							width: "100%",
-						}}
-					>
-						{new Intl.NumberFormat("en-US", {
-							style: "currency",
-							currency: "USD",
-						}).format(displayAmount)}
-					</Typography>
-				);
-			},
-		},
-		{
-			field: "category",
-			headerName: "Category",
-			...defaultColumnProps,
-			flex: 1.5,
-			renderCell: (params: GridRenderCellParams) => (
-				<Select
-					value={params.row.categoryObj.name}
-					onChange={(e) => handleCategoryChange(params.row.id, e.target.value)}
-					fullWidth
-					size='small'
-					sx={{
-						"& .MuiOutlinedInput-notchedOutline": {
-							borderColor: "divider",
-						},
-						"&:hover .MuiOutlinedInput-notchedOutline": {
-							borderColor: "primary.main",
-						},
-					}}
-				>
-					{categories.map((category) => (
-						<MenuItem key={category.name} value={category.name}>
-							{category.name}
-						</MenuItem>
-					))}
-				</Select>
-			),
-		},
-		{
-			field: "subcategory",
-			headerName: "Subcategory",
-			...defaultColumnProps,
-			flex: 1.5,
-			renderCell: (params: GridRenderCellParams) => (
-				<Select
-					value={params.row.subcategoryObj?.name ?? ""}
-					onChange={(e) =>
-						handleSubcategoryChange(params.row.id, e.target.value)
-					}
-					fullWidth
-					size='small'
-					sx={{
-						"& .MuiOutlinedInput-notchedOutline": {
-							borderColor: "divider",
-						},
-						"&:hover .MuiOutlinedInput-notchedOutline": {
-							borderColor: "primary.main",
-						},
-					}}
-				>
-					{(categoryMap[params.row.categoryObj.name] || []).map((sub) => (
-						<MenuItem key={sub.name} value={sub.name}>
-							{sub.name}
-						</MenuItem>
-					))}
-				</Select>
-			),
-		},
-		{ field: "accountName", headerName: "Account", ...defaultColumnProps },
-		{
-			field: "actions",
-			type: "actions",
-			headerName: "Actions",
-			flex: 0.5,
-			getActions: (params) => [
-				<GridActionsCellItem
-					icon={<DeleteIcon sx={{ color: "red" }} />}
-					label='Delete'
-					onClick={() => openDeleteDialog(params.row.id)}
-					showInMenu={false}
-				/>,
-			],
-		},
-	];
-
-	const rows = useMemo(
+	// Pre-process rows with search text
+	const allRows: TransactionRow[] = useMemo(
 		() =>
 			localTransactions.map((transaction) => ({
 				id: transaction.id,
@@ -380,20 +271,239 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				amount: transaction.amount,
 				categoryObj: transaction.category,
 				subcategoryObj: transaction.subcategory,
-				category: transaction.category.name, // for filtering/sorting
-				subcategory: transaction.subcategory?.name ?? "", // for filtering/sorting
+				category: transaction.category.name,
+				subcategory: transaction.subcategory?.name ?? "",
 				date: transaction.date,
 				accountName: transaction.account_name,
 				accountId: transaction.account_id,
 				logo_url: transaction.logo_url,
+				// Pre-compute searchable text for faster filtering
+				_searchText: `${transaction.name} ${transaction.category.name} ${
+					transaction.subcategory?.name ?? ""
+				} ${transaction.account_name}`.toLowerCase(),
 			})),
 		[localTransactions]
 	);
 
+	// Filter rows client-side before passing to TanStack Table for better performance
+	// Use deferred filter value for non-blocking updates
+	const rows: TransactionRow[] = useMemo(() => {
+		if (!deferredGlobalFilter?.trim()) return allRows;
+
+		const searchValue = deferredGlobalFilter.toLowerCase().trim();
+		// Use indexOf instead of includes for potentially better performance
+		return allRows.filter((row) => {
+			const searchText = row._searchText;
+			return searchText ? searchText.indexOf(searchValue) !== -1 : false;
+		});
+	}, [allRows, deferredGlobalFilter]);
+
+	const columns = useMemo<ColumnDef<TransactionRow>[]>(
+		() => [
+			{
+				id: "select",
+				header: ({ table }) => (
+					<Checkbox
+						checked={table.getIsAllPageRowsSelected()}
+						indeterminate={table.getIsSomePageRowsSelected()}
+						onChange={table.getToggleAllPageRowsSelectedHandler()}
+					/>
+				),
+				cell: ({ row }) => (
+					<Checkbox
+						checked={row.getIsSelected()}
+						onChange={row.getToggleSelectedHandler()}
+					/>
+				),
+				size: 50,
+			},
+			{
+				accessorKey: "date",
+				header: "Date",
+				cell: ({ getValue }) => {
+					const date = new Date(getValue() as string);
+					const formattedDate = date.toLocaleDateString(undefined, {
+						month: "2-digit",
+						day: "2-digit",
+						year: "numeric",
+					});
+					const fullDateTime = date.toLocaleString();
+
+					return (
+						<Tooltip title={fullDateTime}>
+							<Typography
+								variant='body2'
+								sx={{
+									color: "text.secondary",
+									whiteSpace: "nowrap",
+								}}
+							>
+								{formattedDate}
+							</Typography>
+						</Tooltip>
+					);
+				},
+				size: 100,
+			},
+			{
+				accessorKey: "name",
+				header: "Name",
+				cell: ({ row }) => (
+					<EditableTransactionNameCell
+						id={row.original.id}
+						value={row.original.name}
+						logoUrl={row.original.logo_url ?? undefined}
+						updateTransactionField={updateTransactionField}
+					/>
+				),
+				size: 200,
+			},
+			{
+				accessorKey: "amount",
+				header: "Amount",
+				cell: ({ row }) => {
+					const amount = row.original.amount;
+
+					// Plaid convention applies to all account types:
+					// Positive = money leaving (expense/charge) = red
+					// Negative = money coming in (income/payment) = green
+					const isNegative = amount < 0;
+					const shouldShowRed = !isNegative;
+
+					const displayAmount = Math.abs(amount);
+
+					return (
+						<Box sx={{ textAlign: "right", width: "100%" }}>
+							<Typography
+								variant='body2'
+								sx={{
+									fontWeight: 600,
+									color: shouldShowRed ? "error.main" : "success.main",
+								}}
+							>
+								{new Intl.NumberFormat("en-US", {
+									style: "currency",
+									currency: "USD",
+								}).format(displayAmount)}
+							</Typography>
+						</Box>
+					);
+				},
+				size: 120,
+			},
+			{
+				accessorKey: "category",
+				header: "Category",
+				cell: ({ row }) => (
+					<Select
+						value={row.original.categoryObj.name}
+						onChange={(e) =>
+							handleCategoryChange(row.original.id, e.target.value)
+						}
+						fullWidth
+						size='small'
+						sx={{
+							"& .MuiOutlinedInput-notchedOutline": {
+								borderColor: "divider",
+							},
+							"&:hover .MuiOutlinedInput-notchedOutline": {
+								borderColor: "primary.main",
+							},
+						}}
+					>
+						{categories.map((category) => (
+							<MenuItem key={category.name} value={category.name}>
+								{category.name}
+							</MenuItem>
+						))}
+					</Select>
+				),
+				size: 200,
+			},
+			{
+				accessorKey: "subcategory",
+				header: "Subcategory",
+				cell: ({ row }) => (
+					<Select
+						value={row.original.subcategoryObj?.name ?? ""}
+						onChange={(e) =>
+							handleSubcategoryChange(row.original.id, e.target.value)
+						}
+						fullWidth
+						size='small'
+						sx={{
+							"& .MuiOutlinedInput-notchedOutline": {
+								borderColor: "divider",
+							},
+							"&:hover .MuiOutlinedInput-notchedOutline": {
+								borderColor: "primary.main",
+							},
+						}}
+					>
+						{(categoryMap[row.original.categoryObj.name] || []).map((sub) => (
+							<MenuItem key={sub.name} value={sub.name}>
+								{sub.name}
+							</MenuItem>
+						))}
+					</Select>
+				),
+				size: 200,
+			},
+			{
+				accessorKey: "accountName",
+				header: "Account",
+				cell: ({ getValue }) => (
+					<Typography variant='body2'>{getValue() as string}</Typography>
+				),
+				size: 150,
+			},
+			{
+				id: "actions",
+				header: "Actions",
+				cell: ({ row }) => (
+					<IconButton
+						size='small'
+						onClick={() => openDeleteDialog(row.original.id)}
+						sx={{ color: "error.main" }}
+					>
+						<DeleteIcon fontSize='small' />
+					</IconButton>
+				),
+				size: 80,
+			},
+		],
+		[categories, categoryMap, accountTypeMap, updateTransactionField]
+	);
+
+	const table = useReactTable({
+		data: rows,
+		columns,
+		getCoreRowModel: getCoreRowModel(),
+		getSortedRowModel: getSortedRowModel(),
+		getPaginationRowModel: getPaginationRowModel(),
+		getFilteredRowModel: getFilteredRowModel(),
+		onRowSelectionChange: setRowSelection,
+		onSortingChange: setSorting,
+		onColumnFiltersChange: setColumnFilters,
+		enableRowSelection: true,
+		enableGlobalFilter: false, // Disable TanStack's global filter, we filter client-side
+		state: {
+			rowSelection,
+			sorting,
+			columnFilters,
+		},
+		initialState: {
+			pagination: {
+				pageSize: 25,
+			},
+		},
+	});
+
+	const selectedCount = Object.keys(rowSelection).length;
+
 	return (
 		<Paper
 			sx={{
-				height: 600,
 				width: "100%",
 				p: 3,
 				borderRadius: 2,
@@ -404,7 +514,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				<Stack
 					alignItems='center'
 					justifyContent='center'
-					height='100%'
+					height={400}
 					textAlign='center'
 				>
 					<Typography variant='h6' color='text.secondary'>
@@ -413,7 +523,95 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				</Stack>
 			) : (
 				<>
-					{selectionModel.length > 0 && (
+					<Stack direction='row' spacing={2} mb={2} alignItems='center'>
+						<TextField
+							placeholder='Search transactions...'
+							value={searchInput}
+							onChange={(e) => setSearchInput(e.target.value)}
+							size='small'
+							sx={{ flexGrow: 1, maxWidth: 400 }}
+							InputProps={{
+								startAdornment: (
+									<InputAdornment position='start'>
+										<SearchIcon />
+									</InputAdornment>
+								),
+								endAdornment: searchInput ? (
+									<InputAdornment position='end'>
+										<IconButton
+											size='small'
+											onClick={() => {
+												setSearchInput("");
+												setGlobalFilter("");
+											}}
+											edge='end'
+										>
+											<ClearIcon fontSize='small' />
+										</IconButton>
+									</InputAdornment>
+								) : null,
+							}}
+						/>
+						<Select
+							value={
+								(table.getColumn("category")?.getFilterValue() as string) || ""
+							}
+							onChange={(e) =>
+								table
+									.getColumn("category")
+									?.setFilterValue(e.target.value || undefined)
+							}
+							displayEmpty
+							size='small'
+							sx={{ minWidth: 180 }}
+						>
+							<MenuItem value=''>All Categories</MenuItem>
+							{categories.map((category) => (
+								<MenuItem key={category.name} value={category.name}>
+									{category.name}
+								</MenuItem>
+							))}
+						</Select>
+						<Select
+							value={
+								(table.getColumn("accountName")?.getFilterValue() as string) ||
+								""
+							}
+							onChange={(e) =>
+								table
+									.getColumn("accountName")
+									?.setFilterValue(e.target.value || undefined)
+							}
+							displayEmpty
+							size='small'
+							sx={{ minWidth: 180 }}
+						>
+							<MenuItem value=''>All Accounts</MenuItem>
+							{Array.from(new Set(rows.map((row) => row.accountName))).map(
+								(account) => (
+									<MenuItem key={account} value={account}>
+										{account}
+									</MenuItem>
+								)
+							)}
+						</Select>
+						{(globalFilter || columnFilters.length > 0) && (
+							<Button
+								variant='outlined'
+								size='small'
+								onClick={() => {
+									setSearchInput("");
+									setGlobalFilter("");
+									setColumnFilters([]);
+								}}
+								startIcon={<ClearIcon />}
+							>
+								Clear Filters
+							</Button>
+						)}
+					</Stack>
+
+					{selectedCount > 0 && (
 						<Stack direction='row' justifyContent='space-between' mb={2}>
 							<Button
 								variant='contained'
@@ -421,65 +619,200 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 								onClick={() => openDeleteDialog(null)}
 								sx={{ mb: 2 }}
 							>
-								Delete Selected ({selectionModel.length})
+								Delete Selected ({selectedCount})
 							</Button>
 						</Stack>
 					)}
 
-					<DataGrid
-						rows={rows}
-						columns={columns}
-						pageSizeOptions={[10, 25, 50, 100]}
-						checkboxSelection
-						onRowSelectionModelChange={(newSelection) =>
-							setSelectionModel(newSelection)
-						}
-						rowSelectionModel={selectionModel}
-						initialState={{
-							sorting: {
-								sortModel: [{ field: "date", sort: "desc" }],
-							},
-							pagination: {
-								paginationModel: { pageSize: 25 },
-							},
-						}}
-						sx={{
-							border: 0,
-							"& .MuiDataGrid-root": {
-								border: "none",
-							},
-							"& .MuiDataGrid-cell": {
-								borderBottom: "1px solid",
-								borderColor: "divider",
+					{table.getRowModel().rows.length === 0 ? (
+						<Stack
+							alignItems='center'
+							justifyContent='center'
+							height={300}
+							textAlign='center'
+						>
+							<Typography variant='h6' color='text.secondary'>
+								No transactions match your filters.
+							</Typography>
+							<Button
+								variant='outlined'
+								size='small'
+								onClick={() => {
+									setSearchInput("");
+									setGlobalFilter("");
+									setColumnFilters([]);
+								}}
+								sx={{ mt: 2 }}
+							>
+								Clear Filters
+							</Button>
+						</Stack>
+					) : (
+						<TableContainer>
+							<Table sx={{ minWidth: 650 }}>
+								<TableHead>
+									{table.getHeaderGroups().map((headerGroup) => (
+										<TableRow key={headerGroup.id}>
+											{headerGroup.headers.map((header) => (
+												<TableCell
+													key={header.id}
+													sx={{
+														backgroundColor: "action.hover",
+														fontWeight: 600,
+														cursor: header.column.getCanSort()
+															? "pointer"
+															: "default",
+														userSelect: "none",
+														whiteSpace: "nowrap",
+													}}
+													onClick={header.column.getToggleSortingHandler()}
+												>
+													<Box
+														sx={{
+															display: "flex",
+															alignItems: "center",
+															gap: 1,
+														}}
+													>
+														{header.isPlaceholder
+															? null
+															: flexRender(
+																	header.column.columnDef.header,
+																	header.getContext()
+															  )}
+														{header.column.getCanSort() && (
+															<>
+																{header.column.getIsSorted() === "asc" && (
+																	<ArrowUpwardIcon fontSize='small' />
+																)}
+																{header.column.getIsSorted() === "desc" && (
+																	<ArrowDownwardIcon fontSize='small' />
+																)}
+																{!header.column.getIsSorted() && (
+																	<Box
+																		sx={{
+																			width: 16,
+																			height: 16,
+																			opacity: 0.3,
+																		}}
+																	/>
+																)}
+															</>
+														)}
+													</Box>
+												</TableCell>
+											))}
+										</TableRow>
+									))}
+								</TableHead>
+								<TableBody>
+									{table.getRowModel().rows.map((row) => (
+										<TableRow
+											key={row.id}
+											selected={row.getIsSelected()}
+											sx={{
+												"&:hover": {
+													backgroundColor: "action.hover",
+												},
+												"&.Mui-selected": {
+													backgroundColor: "action.selected",
+													"&:hover": {
+														backgroundColor: "action.selected",
+													},
+												},
+											}}
+										>
+											{row.getVisibleCells().map((cell) => (
+												<TableCell
+													key={cell.id}
+													sx={{
+														borderBottom: "1px solid",
+														borderColor: "divider",
+													}}
+												>
+													{flexRender(
+														cell.column.columnDef.cell,
+														cell.getContext()
+													)}
+												</TableCell>
+											))}
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</TableContainer>
+					)}
+
+					{table.getRowModel().rows.length > 0 && (
+						<Box
+							sx={{
 								display: "flex",
+								justifyContent: "space-between",
 								alignItems: "center",
-							},
-							"& .MuiDataGrid-columnHeaders": {
-								backgroundColor: "action.hover",
-								borderBottom: "2px solid",
-								borderColor: "divider",
-								fontWeight: 600,
-							},
-							"& .MuiDataGrid-row": {
-								"&:hover": {
-									backgroundColor: "action.hover",
-								},
-								"&.Mui-selected": {
-									backgroundColor: "action.selected",
-									"&:hover": {
-										backgroundColor: "action.selected",
-									},
-								},
-							},
-							"& .MuiDataGrid-footerContainer": {
-								borderTop: "1px solid",
-								borderColor: "divider",
-							},
-							"& .MuiDataGrid-toolbarContainer": {
-								padding: 1,
-							},
-						}}
-					/>
+								mt: 2,
+							}}
+						>
+							<Stack direction='row' spacing={2} alignItems='center'>
+								<Typography variant='body2' color='text.secondary'>
+									{selectedCount > 0 && `${selectedCount} row(s) selected`}
+								</Typography>
+								{(globalFilter || columnFilters.length > 0) && (
+									<Typography variant='body2' color='text.secondary'>
+										Showing {table.getFilteredRowModel().rows.length} of{" "}
+										{rows.length} transactions
+									</Typography>
+								)}
+							</Stack>
+							<Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+								<Button
+									size='small'
+									onClick={() => table.setPageIndex(0)}
+									disabled={!table.getCanPreviousPage()}
+								>
+									First
+								</Button>
+								<Button
+									size='small'
+									onClick={() => table.previousPage()}
+									disabled={!table.getCanPreviousPage()}
+								>
+									Previous
+								</Button>
+								<Typography variant='body2'>
+									Page {table.getState().pagination.pageIndex + 1} of{" "}
+									{table.getPageCount()}
+								</Typography>
+								<Button
+									size='small'
+									onClick={() => table.nextPage()}
+									disabled={!table.getCanNextPage()}
+								>
+									Next
+								</Button>
+								<Button
+									size='small'
+									onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+									disabled={!table.getCanNextPage()}
+								>
+									Last
+								</Button>
+								<Select
+									value={table.getState().pagination.pageSize}
+									onChange={(e) => {
+										table.setPageSize(Number(e.target.value));
+									}}
+									size='small'
+									sx={{ minWidth: 80 }}
+								>
+									{[10, 25, 50, 100].map((pageSize) => (
+										<MenuItem key={pageSize} value={pageSize}>
+											{pageSize}
+										</MenuItem>
+									))}
+								</Select>
+							</Box>
+						</Box>
+					)}
 				</>
 			)}
 
@@ -492,7 +825,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 					<DialogContentText>
 						{deleteTargetId
 							? "Are you sure you want to delete this transaction?"
-							: `Are you sure you want to delete ${selectionModel.length} selected transaction(s)?`}
+							: `Are you sure you want to delete ${selectedCount} selected transaction(s)?`}
 					</DialogContentText>
 				</DialogContent>
 				<DialogActions>

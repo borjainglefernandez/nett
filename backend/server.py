@@ -119,16 +119,22 @@ def info():
 def create_link_token():
     global user_token
     try:
+        # Configure transactions to request 1 year (365 days) of historical data
+        transactions_config = LinkTokenTransactions(days_requested=365)
+        logger.info(f"🔗 Creating link token with transactions.days_requested=365")
+
         request = LinkTokenCreateRequest(
             products=products,
             client_name="Plaid Quickstart",
             country_codes=list(map(lambda x: CountryCode(x), PLAID_COUNTRY_CODES)),
             language="en",
             user=LinkTokenCreateRequestUser(client_user_id=str(time.time())),
+            transactions=transactions_config,
         )
         if PLAID_REDIRECT_URI != None:
             request["redirect_uri"] = PLAID_REDIRECT_URI
         response = client.link_token_create(request)
+        logger.info(f"✅ Link token created successfully")
         return jsonify(response.to_dict())
     except plaid.ApiException as e:
         return error_response(
