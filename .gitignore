@@ -57,3 +57,14 @@ docker-compose.local*.yml
 
 #Python virtual nv
 python/venv/*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Coverage
+.coverage
+htmlcov/
+# Note: .coveragerc is a config file and should be committed
