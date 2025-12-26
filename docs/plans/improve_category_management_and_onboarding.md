@@ -60,18 +60,21 @@ Implement a comprehensive onboarding experience that forces users to set up cate
 ## Progress Summary
 
 ### ✅ Completed (Steps 1-2)
+
 - **Onboarding Utilities**: Created `onboardingUtils.ts` with all validation functions and comprehensive unit tests (15 tests, all passing)
 - **Onboarding Wizard**: Created complete multi-step wizard with 3 steps (categories, budgets, accounts)
 - **Routing & Integration**: Added onboarding route, redirect logic in Main page, and category checks in Link component
-- **Files Created**: 
+- **Files Created**:
   - `OnboardingWizard.tsx`, `OnboardingStepCategories.tsx`, `OnboardingStepBudgets.tsx`, `OnboardingStepAccounts.tsx`
   - `onboardingUtils.ts` with tests
 - **Files Modified**: `App.tsx`, `Main.tsx`, `Link/index.tsx`, `RouteConstants.ts`
 
 ### 🚧 In Progress
+
 - None currently
 
 ### ⏳ Pending
+
 - Backend changes for `display_order` fields
 - Drag-and-drop reordering
 - Search and filter functionality
@@ -458,4 +461,3 @@ flowchart TD
 - Category merging tool
 - Undo/redo for category operations
 - Category versioning/history
-

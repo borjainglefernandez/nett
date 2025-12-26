@@ -147,28 +147,31 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 		setLocalTransactions(transactions);
 	}, [transactions]);
 
-	const updateTransactionField = async (
-		id: string,
-		updates: Partial<Transaction>,
-		successMsg: string,
-		errorMsg: string
-	) => {
-		try {
-			const updatedTxns = localTransactions.map((txn) =>
-				txn.id === id ? { ...txn, ...updates } : txn
-			);
-			setLocalTransactions(updatedTxns);
+	const updateTransactionField = useCallback(
+		async (
+			id: string,
+			updates: Partial<Transaction>,
+			successMsg: string,
+			errorMsg: string
+		) => {
+			try {
+				const updatedTxns = localTransactions.map((txn) =>
+					txn.id === id ? { ...txn, ...updates } : txn
+				);
+				setLocalTransactions(updatedTxns);
 
-			const response = await put(`/api/transaction`, { id, ...updates });
+				const response = await put(`/api/transaction`, { id, ...updates });
 
-			if (response) {
-				alert.trigger(successMsg, "success");
+				if (response) {
+					alert.trigger(successMsg, "success");
+				}
+			} catch (error) {
+				console.error(errorMsg, error);
+				alert.trigger(errorMsg, "error");
 			}
-		} catch (error) {
-			console.error(errorMsg, error);
-			alert.trigger(errorMsg, "error");
-		}
-	};
+		},
+		[localTransactions, put, alert]
+	);
 
 	const handleCategoryChange = async (id: string, newCategoryName: string) => {
 		const newCategory = categories.find((cat) => cat.name === newCategoryName);
