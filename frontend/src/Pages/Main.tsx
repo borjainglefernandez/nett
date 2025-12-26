@@ -25,6 +25,10 @@ import {
 } from "@mui/material";
 import TabPanel from "../Components/TabPanel/TabPanel";
 import BudgetDashboard from "../Components/BudgetDashboard/BudgetDashboard";
+import { useNavigate } from "react-router-dom";
+import { ONBOARDING_ROUTE } from "../Constants/RouteConstants";
+import { shouldShowOnboarding } from "../Utils/onboardingUtils";
+import { Category } from "../Models/Category";
 
 const Main = () => {
 	// Hooks
@@ -43,6 +47,8 @@ const Main = () => {
 		useContext(Context);
 	const alert = useAppAlert();
 	const { get, post, del } = useApiService(alert);
+	const navigate = useNavigate();
+	const [categories, setCategories] = useState<Category[]>([]);
 
 	const generateToken = useCallback(async () => {
 		const data = await post("/api/create_link_token", {});
@@ -110,30 +116,35 @@ const Main = () => {
 		}
 	}, []);
 
-	const getTransactions = useCallback(async (accountsToUse?: Account[]) => {
-		const accountsForTransactions = accountsToUse || selectedAccounts;
-		const allTransactions: Transaction[] = [];
-		await Promise.all(
-			accountsForTransactions.map(async (account) => {
-				const transactionData = await get(
-					`/api/account/${account.id}/transactions`
-				);
+	const getTransactions = useCallback(
+		async (accountsToUse?: Account[]) => {
+			const accountsForTransactions = accountsToUse || selectedAccounts;
+			const allTransactions: Transaction[] = [];
+			await Promise.all(
+				accountsForTransactions.map(async (account) => {
+					const transactionData = await get(
+						`/api/account/${account.id}/transactions`
+					);
 
-				// Convert response to Transaction model
-				const transactionsForAccount: Transaction[] = transactionData.map(
-					(transaction: any) => ({
-						...transaction,
-						amount: Number(transaction.amount), // Ensure amount is a number
-						date: transaction.date ? new Date(transaction.date) : null, // Convert date
-						date_time: transaction.date ? new Date(transaction.dateTime) : null, // Convert date
-						account_name: account.name,
-					})
-				);
-				allTransactions.push(...transactionsForAccount);
-			})
-		);
-		setTransactions(allTransactions); // Update state after all requests complete
-	}, [selectedAccounts, get]);
+					// Convert response to Transaction model
+					const transactionsForAccount: Transaction[] = transactionData.map(
+						(transaction: any) => ({
+							...transaction,
+							amount: Number(transaction.amount), // Ensure amount is a number
+							date: transaction.date ? new Date(transaction.date) : null, // Convert date
+							date_time: transaction.date
+								? new Date(transaction.dateTime)
+								: null, // Convert date
+							account_name: account.name,
+						})
+					);
+					allTransactions.push(...transactionsForAccount);
+				})
+			);
+			setTransactions(allTransactions); // Update state after all requests complete
+		},
+		[selectedAccounts, get]
+	);
 
 	const refreshAccountsAndTransactions = useCallback(async () => {
 		const accountData = await get("/api/account");
@@ -150,6 +161,20 @@ const Main = () => {
 			await getTransactions(fetchedAccounts);
 		}
 	}, [get, getTransactions]);
+
+	// Check for onboarding requirement
+	useEffect(() => {
+		const checkOnboarding = async () => {
+			const categoryData = await get("/api/category");
+			if (categoryData) {
+				setCategories(categoryData);
+				if (shouldShowOnboarding(categoryData)) {
+					navigate(ONBOARDING_ROUTE);
+				}
+			}
+		};
+		checkOnboarding();
+	}, [get, navigate]);
 
 	useEffect(() => {
 		const init = async () => {

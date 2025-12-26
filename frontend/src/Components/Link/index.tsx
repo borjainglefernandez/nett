@@ -1,15 +1,35 @@
-import React, { useEffect, useContext } from "react";
+import React, { useEffect, useContext, useState } from "react";
 import { usePlaidLink } from "react-plaid-link";
+import { useNavigate } from "react-router-dom";
 
 import Context from "../../Context";
 import Button from "@mui/material/Button";
+import { Tooltip } from "@mui/material";
 import useAppAlert from "../../hooks/appAlert";
 import useApiService from "../../hooks/apiService";
+import { hasCategories } from "../../Utils/onboardingUtils";
+import { Category } from "../../Models/Category";
+import { ONBOARDING_ROUTE } from "../../Constants/RouteConstants";
 
 const Link = () => {
 	const { linkToken, dispatch } = useContext(Context);
 	const alert = useAppAlert();
-	const { post } = useApiService(alert);
+	const { post, get } = useApiService(alert);
+	const navigate = useNavigate();
+	const [categories, setCategories] = useState<Category[]>([]);
+	const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+
+	// Check for categories
+	useEffect(() => {
+		const checkCategories = async () => {
+			const categoryData = await get("/api/category");
+			if (categoryData) {
+				setCategories(categoryData);
+			}
+			setCategoriesLoaded(true);
+		};
+		checkCategories();
+	}, [get]);
 
 	const onSuccess = React.useCallback(
 		(public_token: string) => {
@@ -53,10 +73,39 @@ const Link = () => {
 		}
 	}, [ready, open, isOauth]);
 
+	const handleClick = () => {
+		if (!hasCategories(categories)) {
+			alert.trigger(
+				"Please set up categories before adding accounts. Redirecting to onboarding...",
+				"warning"
+			);
+			setTimeout(() => {
+				navigate(ONBOARDING_ROUTE);
+			}, 1500);
+			return;
+		}
+		open();
+	};
+
+	const hasCategoriesCheck = hasCategories(categories);
+	const isDisabled = !ready || !categoriesLoaded || !hasCategoriesCheck;
+
 	return (
-		<Button onClick={() => open()} disabled={!ready}>
-			{ready ? "Add new account" : "Server Unreachable"}
-		</Button>
+		<Tooltip
+			title={
+				!hasCategoriesCheck
+					? "Please set up categories before adding accounts"
+					: !ready
+					? "Server Unreachable"
+					: ""
+			}
+		>
+			<span>
+				<Button onClick={handleClick} disabled={isDisabled}>
+					{ready && categoriesLoaded ? "Add new account" : "Server Unreachable"}
+				</Button>
+			</span>
+		</Tooltip>
 	);
 };
 
