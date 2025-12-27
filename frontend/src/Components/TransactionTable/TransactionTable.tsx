@@ -57,6 +57,7 @@ import { Tooltip } from "@mui/material";
 
 interface TransactionTableProps {
 	transactions: Transaction[];
+	categories?: Category[];
 }
 
 type TransactionRow = {
@@ -76,13 +77,10 @@ type TransactionRow = {
 
 const TransactionTable: React.FC<TransactionTableProps> = ({
 	transactions,
+	categories: categoriesProp,
 }) => {
 	const [localTransactions, setLocalTransactions] =
 		useState<Transaction[]>(transactions);
-	const [categories, setCategories] = useState<Category[]>([]);
-	const [categoryMap, setCategoryMap] = useState<Record<string, Subcategory[]>>(
-		{}
-	);
 	const [accountTypeMap, setAccountTypeMap] = useState<Record<string, string>>(
 		{}
 	);
@@ -111,23 +109,35 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	const alert = useAppAlert();
 	const { get, put, del } = useApiService(alert);
 
+	// Use categories prop directly, or fetch once if not provided
+	const [fetchedCategories, setFetchedCategories] = useState<Category[]>([]);
+	const categoriesToUse: Category[] = categoriesProp || fetchedCategories;
+
 	useEffect(() => {
-		const fetchCategories = async () => {
-			const data = await get("/api/category");
-			if (data) {
-				setCategories(data);
-				const map = data.reduce(
-					(acc: Record<string, Subcategory[]>, category: Category) => {
-						acc[category.name] = category.subcategories;
-						return acc;
-					},
-					{}
-				);
-				setCategoryMap(map);
-			}
-		};
-		fetchCategories();
-	}, []);
+		if (!categoriesProp && fetchedCategories.length === 0) {
+			// Only fetch if not provided as prop and we haven't fetched yet
+			const fetchCategories = async () => {
+				const data = await get("/api/category");
+				if (data) {
+					setFetchedCategories(data);
+				}
+			};
+			fetchCategories();
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []); // Only run once on mount
+
+	// Memoize category map calculation - use directly, no state
+	const categoryMap = useMemo(() => {
+		if (!categoriesToUse || !categoriesToUse.length) return {};
+		return categoriesToUse.reduce(
+			(acc: Record<string, Subcategory[]>, category: Category) => {
+				acc[category.name] = category.subcategories;
+				return acc;
+			},
+			{}
+		);
+	}, [categoriesToUse]);
 
 	useEffect(() => {
 		const fetchAccounts = async () => {
@@ -174,7 +184,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 	);
 
 	const handleCategoryChange = async (id: string, newCategoryName: string) => {
-		const newCategory = categories.find((cat) => cat.name === newCategoryName);
+		const newCategory = categoriesToUse.find(
+			(cat) => cat.name === newCategoryName
+		);
 		if (!newCategory) {
 			alert.trigger(`Category ${newCategoryName} not found`, "error");
 			return;
@@ -202,7 +214,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 		if (!transaction) return;
 
 		const currentCategory = transaction.category;
-		const subcategories = categoryMap[currentCategory.name] || [];
+		const subcategories = categoryMap[currentCategory?.name] || [];
 
 		const newSubcategory = subcategories.find(
 			(sub) => sub.name === newSubcategoryName
@@ -414,7 +426,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 							},
 						}}
 					>
-						{categories.map((category) => (
+						{categoriesToUse.map((category) => (
 							<MenuItem key={category.name} value={category.name}>
 								{category.name}
 							</MenuItem>
@@ -475,7 +487,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 				size: 80,
 			},
 		],
-		[categories, categoryMap, accountTypeMap, updateTransactionField]
+		[categoriesToUse, categoryMap, accountTypeMap, updateTransactionField]
 	);
 
 	const table = useReactTable({
@@ -569,7 +581,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 							sx={{ minWidth: 180 }}
 						>
 							<MenuItem value=''>All Categories</MenuItem>
-							{categories.map((category) => (
+							{categoriesToUse.map((category) => (
 								<MenuItem key={category.name} value={category.name}>
 									{category.name}
 								</MenuItem>

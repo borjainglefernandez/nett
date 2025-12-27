@@ -162,9 +162,9 @@ const Main = () => {
 		}
 	}, [get, getTransactions]);
 
-	// Check for onboarding requirement
+	// Fetch categories early for both onboarding check and TransactionTable
 	useEffect(() => {
-		const checkOnboarding = async () => {
+		const fetchCategories = async () => {
 			const categoryData = await get("/api/category");
 			if (categoryData) {
 				setCategories(categoryData);
@@ -173,7 +173,7 @@ const Main = () => {
 				}
 			}
 		};
-		checkOnboarding();
+		fetchCategories();
 	}, [get, navigate]);
 
 	useEffect(() => {
@@ -296,7 +296,10 @@ const Main = () => {
 						/>
 					</TabPanel>
 					<TabPanel value={tabIndex} index={1}>
-						<TransactionTable transactions={transactions} />
+						<TransactionTable
+							transactions={transactions}
+							categories={categories}
+						/>
 					</TabPanel>
 					<TabPanel value={tabIndex} index={2}>
 						<BudgetDashboard />
